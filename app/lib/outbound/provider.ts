@@ -224,6 +224,8 @@ export class InstantlyProvider implements SendProvider {
 
 /** Picks the configured provider. Defaults to DryRunProvider on any doubt. */
 export function getProvider(): SendProvider {
+  // The public demo never sends, whatever the environment says.
+  if (process.env.DEAL_DESK_DEMO === "1") return new DryRunProvider();
   if (process.env.OUTBOUND_PROVIDER === "apollo") {
     try {
       return new ApolloProvider();

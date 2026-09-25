@@ -11,6 +11,7 @@ import { ButtonLink } from "../../components/ui/Button";
 import { getCompanyProfile, contactOwnerView } from "../../lib/profile";
 import { OwnerCard, BusinessCard, WhyNowCard, FitLine, HintsCard } from "../../components/profile/ProfileCards";
 import RefreshProfileButton from "../../components/profile/RefreshProfileButton";
+import { isDemo } from "../../lib/demo-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                 profile={profile}
                 contact={{ name: displayName, title: contact.title, linkedin_url: contact.linkedin_url, source: contact.source }}
                 view={view}
-                actions={user?.role === "owner" ? <RefreshProfileButton companyId={profile.companyId} refreshedAt={profile.refreshedAt} /> : undefined}
+                actions={user?.role === "owner" ? <RefreshProfileButton companyId={profile.companyId} refreshedAt={profile.refreshedAt} demo={isDemo()} /> : undefined}
               />
               <BusinessCard profile={profile} />
             </>

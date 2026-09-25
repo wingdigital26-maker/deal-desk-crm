@@ -1333,6 +1333,124 @@ addAudit({
 }
 
 // ---------------------------------------------------------------------------
+// 17b. Profile facts: sourced owner/business facts for a couple of showcase
+// companies, so the banker profile page (app/lib/profile.ts) has something
+// to render besides "Not in public sources" out of the box. Fictional, but
+// shaped exactly like what scrapers/profile_enrich.py would have written.
+// ---------------------------------------------------------------------------
+function hostOf_(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+const insFact = db.prepare(
+  `INSERT INTO profile_facts (entity, entity_id, field, value, value_key, source_url, source_label, confidence, match_basis, note, observed_at, fetched_at)
+   VALUES ('company',?,?,?,?,?,?,?,?,?,?,?)`
+);
+const factFetchedAt = isoDateTime(daysFromToday(-6));
+function addProfileFact(companyId, field, value, opts = {}) {
+  insFact.run(
+    companyId,
+    field,
+    value,
+    opts.valueKey ?? "",
+    opts.sourceUrl ?? `https://${companies.find((c) => c.id === companyId)?.domain}/about`,
+    opts.sourceLabel ?? null,
+    opts.confidence ?? "confirmed",
+    opts.matchBasis ?? null,
+    opts.note ?? null,
+    opts.observedAt ?? null,
+    factFetchedAt
+  );
+}
+
+function companyByName(name) {
+  const c = companies.find((x) => x.name === name);
+  if (!c) throw new Error(`seed-demo profile facts: no company named "${name}"`);
+  return c;
+}
+
+// Cottonwood Fabrication: the company behind the Foster Ashworth contact
+// profile screenshot in docs/screenshots. Give it a full owner + business
+// picture, sourced the way the real scrapers would.
+{
+  const co = companyByName("Cottonwood Fabrication");
+  const site = `https://${co.domain}`;
+  const foster = contacts.find((c) => c.company_id === co.id && c.last_name === "Ashworth");
+  addProfileFact(co.id, "owner_name", foster ? `${foster.first_name} ${foster.last_name}` : "Foster Ashworth", {
+    sourceUrl: `${site}/about`,
+    sourceLabel: hostOf_(site),
+  });
+  addProfileFact(co.id, "owner_title", "President", { sourceUrl: `${site}/about`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "owner_since", "2011", {
+    sourceUrl: `${site}/about`,
+    sourceLabel: hostOf_(site),
+    note: "Bought into the business as a minority partner in 2011, took full ownership in 2017.",
+  });
+  addProfileFact(co.id, "owner_bio", "Started in outside sales before buying into the business; now sole owner and day-to-day operator.", {
+    sourceUrl: `${site}/about`,
+    sourceLabel: hostOf_(site),
+  });
+  addProfileFact(co.id, "owner_linkedin", foster?.linkedin_url || "https://www.linkedin.example/in/foster-ashworth-853", {
+    sourceUrl: foster?.linkedin_url || "https://www.linkedin.example/in/foster-ashworth-853",
+    sourceLabel: "linkedin.example",
+  });
+  addProfileFact(co.id, "owner_other_roles", "Board member, Wichita Falls Chamber of Commerce", {
+    valueKey: "chamber",
+    sourceUrl: "https://wichitafallschamber.example/board",
+    sourceLabel: "wichitafallschamber.example",
+  });
+  addProfileFact(co.id, "owner_press", "Named Manufacturer of the Year, Wichita Falls Business Journal (2023)", {
+    valueKey: "wfbj-2023",
+    sourceUrl: "https://wichitafallsbusinessjournal.example/2023/manufacturer-of-the-year",
+    sourceLabel: "wichitafallsbusinessjournal.example",
+    observedAt: isoDate(new Date(2023, 10, 14)),
+  });
+
+  addProfileFact(co.id, "legal_name", "Cottonwood Fabrication, LLC", { sourceUrl: `${site}/legal`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "summary", "Custom structural steel fabrication for commercial and light-industrial contractors across North Texas.", {
+    sourceUrl: `${site}/about`,
+    sourceLabel: hostOf_(site),
+  });
+  addProfileFact(co.id, "naics", "332312 - Fabricated Structural Metal Manufacturing", { sourceUrl: `${site}/about`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "founded_year", "1998", { sourceUrl: `${site}/about`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "formation_date", "03/1998", {
+    sourceUrl: "https://www.sos.state.tx.example/filings/cottonwood-fabrication",
+    sourceLabel: "Texas SOS",
+  });
+  addProfileFact(co.id, "entity_type", "Domestic limited liability company", {
+    sourceUrl: "https://www.sos.state.tx.example/filings/cottonwood-fabrication",
+    sourceLabel: "Texas SOS",
+  });
+  addProfileFact(co.id, "sos_file_number", "0198445210", {
+    sourceUrl: "https://www.sos.state.tx.example/filings/cottonwood-fabrication",
+    sourceLabel: "Texas SOS",
+  });
+  addProfileFact(co.id, "hq_address", `4410 Industrial Loop, Wichita Falls, TX`, { sourceUrl: `${site}/contact`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "ownership_type", "family-owned", { sourceUrl: `${site}/about`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "family_owned_since", "2011", { sourceUrl: `${site}/about`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "end_markets", "Commercial general contractors", { valueKey: "gc", sourceUrl: `${site}/work`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "end_markets", "Light-industrial developers", { valueKey: "industrial", sourceUrl: `${site}/work`, sourceLabel: hostOf_(site) });
+  addProfileFact(co.id, "certifications", "AISC certified fabricator", {
+    valueKey: "aisc",
+    sourceUrl: `${site}/certifications`,
+    sourceLabel: hostOf_(site),
+  });
+  addProfileFact(co.id, "company_linkedin", `https://www.linkedin.example/company/cottonwood-fabrication`, {
+    sourceUrl: `https://www.linkedin.example/company/cottonwood-fabrication`,
+    sourceLabel: "linkedin.example",
+  });
+  addProfileFact(co.id, "leaders", "Priya Nakamura | Shop Foreman", {
+    valueKey: "leader-1",
+    sourceUrl: `${site}/about`,
+    sourceLabel: hostOf_(site),
+    confidence: "unconfirmed",
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 18. Summary + integrity checks
 // ---------------------------------------------------------------------------
 function count(table) {
@@ -1343,7 +1461,7 @@ console.log("");
 console.log("=== Demo workspace seeded: " + DEMO_DB_PATH + " ===");
 console.log("");
 console.log("Row counts:");
-for (const t of ["users", "companies", "contacts", "deals", "tasks", "activities", "signals", "templates", "mailboxes", "outbound_messages", "suppression", "inbound_replies", "audit_log"]) {
+for (const t of ["users", "companies", "contacts", "deals", "tasks", "activities", "signals", "templates", "mailboxes", "outbound_messages", "suppression", "inbound_replies", "audit_log", "profile_facts"]) {
   console.log(`  ${t.padEnd(20)} ${count(t)}`);
 }
 

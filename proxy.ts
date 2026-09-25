@@ -2,12 +2,20 @@
 // the login/logout API and static assets. Fails closed.
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { isDemo, demoBlocks, DEMO_REFUSAL } from "./app/lib/demo-policy";
 
 // /u/<token> is the opt-out page a recipient reaches from an email: it must work signed out.
 const PUBLIC = ["/login", "/api/auth/login", "/api/auth/logout", "/u", "/api/unsubscribe"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // Public demo (DEAL_DESK_DEMO=1): no sign-in, and anything that would reach an
+  // outside service, spawn a process or touch a password is refused here.
+  if (isDemo()) {
+    if (demoBlocks(pathname, req.method)) return NextResponse.json({ error: DEMO_REFUSAL, demo: true }, { status: 403 });
+    if (pathname === "/login") return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.next();
+  }
   // Local dev switch, see noLoginMode() in app/lib/session.ts. Hard-off in production.
   if (process.env.HARNESS_NO_LOGIN === "1" && process.env.NODE_ENV !== "production") {
     if (pathname === "/login") return NextResponse.redirect(new URL("/", req.url));

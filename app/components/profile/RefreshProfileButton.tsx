@@ -6,7 +6,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../ui/Button";
 
-export default function RefreshProfileButton({ companyId, refreshedAt }: { companyId: number; refreshedAt: string | null }) {
+export default function RefreshProfileButton({
+  companyId,
+  refreshedAt,
+  demo = false,
+}: {
+  companyId: number;
+  refreshedAt: string | null;
+  demo?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -29,6 +37,17 @@ export default function RefreshProfileButton({ companyId, refreshedAt }: { compa
     } finally {
       setBusy(false);
     }
+  }
+
+  if (demo) {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <Button variant="secondary" size="sm" disabled>
+          Refresh profile
+        </Button>
+        <span className="text-[12px] text-[var(--ink-faint)]">Not available in the demo</span>
+      </div>
+    );
   }
 
   const when = refreshedAt ? new Date(refreshedAt.replace(" ", "T") + "Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;

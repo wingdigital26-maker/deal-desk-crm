@@ -14,6 +14,7 @@ import { currentUser } from "../../lib/session";
 import { getCompanyProfile } from "../../lib/profile";
 import { OwnerCard, BusinessCard, WhyNowCard, FitLine, HintsCard } from "../../components/profile/ProfileCards";
 import RefreshProfileButton from "../../components/profile/RefreshProfileButton";
+import { isDemo } from "../../lib/demo-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +92,7 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
         <div className="min-w-0 space-y-6 lg:col-span-2">
           <OwnerCard
             profile={profile}
-            actions={user?.role === "owner" ? <RefreshProfileButton companyId={companyId} refreshedAt={profile.refreshedAt} /> : undefined}
+            actions={user?.role === "owner" ? <RefreshProfileButton companyId={companyId} refreshedAt={profile.refreshedAt} demo={isDemo()} /> : undefined}
           />
           <BusinessCard profile={profile} />
           <CompanyDetail company={company} segments={firm.segments} />

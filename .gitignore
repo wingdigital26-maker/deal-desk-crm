@@ -16,3 +16,7 @@ backups/
 .visual/fixcheck*/
 .visual/round-*/
 scrapers/__pycache__/
+demo/*.db
+demo/*.db-*
+.demo-check/
+.vercel

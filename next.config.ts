@@ -11,6 +11,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
+  // Hosted demo (DEAL_DESK_DEMO=1): ship the seeded fictional workspace with
+  // every server function so app/lib/demo.ts can copy it to the temp dir.
+  outputFileTracingIncludes: { "/**": ["./demo/demo.db"] },
   devIndicators: false, // the dev-only corner chip overlaps the rail and pollutes review screenshots
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];

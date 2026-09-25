@@ -1,5 +1,8 @@
 # Deal Desk
 
+**Live demo: [dealdesk-demo.vercel.app](https://dealdesk-demo.vercel.app)**
+(no sign-in; every company, person and message is fictional sample data, and sending is disabled)
+
 A CRM plus a compliance-gated outbound harness for M&A bankers.
 
 Deal Desk keeps a banker's companies, contacts, deals and tasks in one place, and it
@@ -8,6 +11,19 @@ has not approved. It is built for a regulated firm (FINRA Rule 2210 style review
 every outbound template is approved by a compliance principal, the approval is bound
 to a hash of the exact content, and the send path re-checks everything at send time
 and fails closed.
+
+## Demo mode
+
+Set `DEAL_DESK_DEMO=1` to run the app as a public, read-mostly sample workspace (this is
+how the live demo is hosted on Vercel). `npm run build` then seeds `demo/demo.db` from
+`scripts/seed-demo.mjs`, and at runtime the app copies it to the temp dir and works on
+that copy, so visitor edits reset when the instance recycles. In demo mode:
+
+- sign-in is skipped and every visitor acts as the demo owner
+- every send provider is forced to dry run, whatever else the environment says
+- Apollo, Instantly, reply sync, profile refresh (Python), password changes and user
+  management routes return "Not available in the demo"
+- no secrets are needed or used; `DEAL_DESK_DEMO=1` is the only variable
 
 ## Features
 

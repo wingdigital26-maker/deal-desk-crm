@@ -41,10 +41,12 @@ export class ApolloRequestError extends Error {
 }
 
 export function isConfigured(): boolean {
+  if (process.env.DEAL_DESK_DEMO === "1") return false; // public demo: never call Apollo
   return typeof process.env.APOLLO_API_KEY === "string" && process.env.APOLLO_API_KEY.length > 0;
 }
 
 function apiKey(): string {
+  if (process.env.DEAL_DESK_DEMO === "1") throw new ApolloNotConfigured();
   const key = process.env.APOLLO_API_KEY;
   if (!key) throw new ApolloNotConfigured();
   return key;

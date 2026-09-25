@@ -30,6 +30,7 @@ export class InstantlyRequestError extends Error {
 }
 
 export function isInstantlyConfigured(): boolean {
+  if (process.env.DEAL_DESK_DEMO === "1") return false; // public demo: never call Instantly
   return !!process.env.INSTANTLY_API_KEY;
 }
 
@@ -71,7 +72,7 @@ export function getAllowedCampaignIds(): string[] {
 }
 
 async function call<T>(method: "GET" | "POST", pathAndQuery: string, body?: unknown): Promise<T> {
-  const key = process.env.INSTANTLY_API_KEY;
+  const key = process.env.DEAL_DESK_DEMO === "1" ? undefined : process.env.INSTANTLY_API_KEY; // public demo: never call out
   if (!key) throw new InstantlyNotConfigured();
   const res = await fetch(`${BASE_URL}${pathAndQuery}`, {
     method,

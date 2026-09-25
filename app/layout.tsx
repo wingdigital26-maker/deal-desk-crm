@@ -4,6 +4,7 @@ import "./globals.css";
 import { firm } from "../firm.config";
 import { currentUser } from "./lib/session";
 import Shell from "./components/Shell";
+import { isDemo } from "./lib/demo-policy";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta", display: "swap" });
@@ -17,7 +18,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await currentUser();
   return (
     <html lang="en" className={`${inter.variable} ${jakarta.variable}`}>
-      <body>{user ? <Shell user={user} demo={process.env.HARNESS_DEMO === "1"}>{children}</Shell> : children}</body>
+      <body>{user ? <Shell user={user} demo={isDemo() || process.env.HARNESS_DEMO === "1"}>{children}</Shell> : children}</body>
     </html>
   );
 }

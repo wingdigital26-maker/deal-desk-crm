@@ -1,0 +1,14 @@
+.env*
+!.env.example
+node_modules
+.next
+data/*.db
+data/*.db-*
+demo/*.db
+.demo-check
+.ja
+.visual
+backups
+scrapers/.tmp
+scrapers/__pycache__
+*.log

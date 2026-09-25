@@ -3,6 +3,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { isDemo } from "./demo";
 
 export const SESSION_COOKIE = "harness_session";
 export type Role = "owner" | "principal" | "member";
@@ -61,14 +62,16 @@ export async function readSessionToken(token: string | undefined): Promise<Sessi
 // database, so a demoted or deleted user loses access on the next request
 // instead of keeping the old role until the token expires.
 export async function currentUser(): Promise<SessionUser | null> {
-  if (noLoginMode()) {
+  // Read the cookie jar first in every mode: it marks the page as dynamic, so
+  // demo pages are rendered per request instead of frozen at build time.
+  const jar = await cookies();
+  if (noLoginMode() || isDemo()) {
     const { db } = await import("./db");
     const owner = db().prepare("SELECT id, email, name FROM users WHERE role = 'owner' AND disabled = 0 ORDER BY id LIMIT 1").get() as
       | { id: number; email: string; name: string }
       | undefined;
     if (owner) return { ...owner, role: "owner" };
   }
-  const jar = await cookies();
   const claimed = await readSessionToken(jar.get(SESSION_COOKIE)?.value);
   if (!claimed) return null;
   const { db } = await import("./db");

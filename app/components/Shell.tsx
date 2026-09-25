@@ -176,7 +176,7 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
 
         {demo && (
           <div className="w-full border-b border-[var(--rule)] bg-[var(--surface)] px-4 py-2 text-[13px] text-[var(--ink-soft)] md:px-8">
-            Demo workspace. Every company, person and message here is fictional sample data. Nothing can be sent.
+            Demo workspace. Sample data, sending disabled.
           </div>
         )}
         <main className="mx-auto w-full max-w-[1240px] min-w-0 px-4 pb-28 pt-6 md:px-8 md:pb-10 md:pt-8">{children}</main>

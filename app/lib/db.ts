@@ -6,7 +6,17 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
-const DB_PATH = process.env.HARNESS_DB_PATH || path.join(process.cwd(), "data", "harness.db");
+import { isDemo, demoDbPath } from "./demo";
+
+// Demo mode (DEAL_DESK_DEMO=1) always runs on a scratch copy of the bundled
+// fictional workspace, whatever HARNESS_DB_PATH says. Resolved lazily so the
+// copy happens on the first db() call, not at import.
+let _dbPath: string | null = null;
+function resolveDbPath(): string {
+  if (_dbPath) return _dbPath;
+  _dbPath = isDemo() ? demoDbPath() : process.env.HARNESS_DB_PATH || path.join(process.cwd(), "data", "harness.db");
+  return _dbPath;
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -221,7 +231,7 @@ function migrate(d: DatabaseSync) {
 let _db: DatabaseSync | null = null;
 
 /** Where the database file lives, for the Python scrapers the app shells out to. */
-export const dbPath = () => DB_PATH;
+export const dbPath = () => resolveDbPath();
 
 // node:sqlite returns rows with a null prototype. React refuses to pass those
 // from a server component to a client component, so every row is copied into a
@@ -244,8 +254,9 @@ function plainRows(d: DatabaseSync): DatabaseSync {
 
 export function db(): DatabaseSync {
   if (_db) return _db;
-  mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  const d = new DatabaseSync(DB_PATH);
+  const file = resolveDbPath();
+  mkdirSync(path.dirname(file), { recursive: true });
+  const d = new DatabaseSync(file);
   d.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   d.exec(SCHEMA);
   migrate(d);
