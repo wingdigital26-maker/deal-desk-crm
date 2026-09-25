@@ -17,7 +17,7 @@ const BLANK = "Not in public sources";
 
 function UnconfirmedPill() {
   return (
-    <span className="inline-flex items-center rounded-full bg-[var(--tint-sand)] px-2 py-0.5 text-[11px] font-semibold text-[var(--warn)]">
+    <span className="inline-flex items-center rounded-full bg-[var(--status-warn-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--warn)]">
       Unconfirmed
     </span>
   );
@@ -81,7 +81,7 @@ function Pills({ label, items, wide = true }: { label: string; items: Sourced[];
               rel="noreferrer"
               title={`${s.sourceLabel}${s.note ? `: ${s.note}` : ""}`}
               className={`inline-flex min-h-[32px] items-center rounded-full px-3 text-[13px] font-medium ${
-                s.confidence === "confirmed" ? "bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--tint-sky)]" : "bg-[var(--tint-sand)] text-[var(--warn)]"
+                s.confidence === "confirmed" ? "bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--tint-1)]" : "bg-[var(--status-warn-bg)] text-[var(--warn)]"
               }`}
             >
               {s.value}
@@ -144,7 +144,7 @@ export function OwnerCard({
   const founderYear = /found/i.test((sitePerson ? o.title?.value : siteTitle?.value) || "") ? profile.business.foundedYear : null;
 
   return (
-    <Panel title={<CardTitle icon={<UsersIcon />} tint="bg-[var(--tint-sky)]">Owner</CardTitle>} actions={actions}>
+    <Panel title={<CardTitle icon={<UsersIcon />} tint="bg-[var(--tint-1)]">Owner</CardTitle>} actions={actions}>
       {view?.principal && (
         <p className="mb-4 rounded-[12px] bg-[var(--paper)] px-3.5 py-2.5 text-[13px] text-[var(--ink-soft)]">
           The company site names <span className="font-semibold text-[var(--ink)]">{view.principal.name.value}</span>
@@ -189,7 +189,7 @@ export function OwnerCard({
                   href={l.source.sourceUrl ?? undefined}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-[var(--paper)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--tint-sky)]"
+                  className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-[var(--paper)] px-3 text-[13px] text-[var(--ink)] hover:bg-[var(--tint-1)]"
                 >
                   <span className="font-semibold">{l.name}</span>
                   <span className="text-[var(--ink-soft)]">{TITLE_CASE(l.title)}</span>
@@ -206,7 +206,7 @@ export function OwnerCard({
 export function BusinessCard({ profile }: { profile: CompanyProfile }) {
   const b = profile.business;
   return (
-    <Panel title={<CardTitle icon={<BuildingIcon />} tint="bg-[var(--tint-sage)]">Business</CardTitle>}>
+    <Panel title={<CardTitle icon={<BuildingIcon />} tint="bg-[var(--tint-2)]">Business</CardTitle>}>
       <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
         <Row label="What they do" s={b.summary} wide render={(v) => <span className="font-normal leading-relaxed">{v}</span>} />
         <Row label="Legal name" s={b.legalName} />
@@ -242,11 +242,11 @@ const KIND_LABEL: Record<WhyNowItem["kind"], string> = {
   contract: "Federal contract",
 };
 const KIND_TINT: Record<WhyNowItem["kind"], string> = {
-  hiring: "bg-[var(--tint-sky)]",
-  expansion: "bg-[var(--tint-sage)]",
-  facility: "bg-[var(--tint-sage)]",
-  award: "bg-[var(--tint-mist)]",
-  ownership: "bg-[var(--tint-sand)]",
+  hiring: "bg-[var(--tint-1)]",
+  expansion: "bg-[var(--tint-2)]",
+  facility: "bg-[var(--tint-2)]",
+  award: "bg-[var(--tint-3)]",
+  ownership: "bg-[var(--tint-4)]",
   news: "bg-[var(--paper)]",
   contract: "bg-[var(--paper)]",
 };
@@ -286,7 +286,7 @@ export function WhyNowCard({ profile }: { profile: CompanyProfile }) {
   const rest = confirmed.slice(6);
   const unconfirmed = profile.whyNow.filter((w) => w.confidence === "unconfirmed");
   return (
-    <Panel title={<CardTitle icon={<ActivityIcon />} tint="bg-[var(--tint-mist)]">Why now</CardTitle>}>
+    <Panel title={<CardTitle icon={<ActivityIcon />} tint="bg-[var(--tint-3)]">Why now</CardTitle>}>
       {confirmed.length === 0 ? (
         <p className="text-[14px] text-[var(--ink-faint)]">No hiring, expansion, award, facility or ownership news tied to this company yet.</p>
       ) : (
@@ -354,7 +354,7 @@ export function HintsCard({ profile }: { profile: CompanyProfile }) {
   return (
     <Panel
       title={<span className="[font-family:var(--font-display)] text-[17px] font-bold tracking-[-0.01em]">Sell-readiness hints</span>}
-      actions={<span className="rounded-full bg-[var(--tint-sand)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warn)]">Inference</span>}
+      actions={<span className="rounded-full bg-[var(--status-warn-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warn)]">Inference</span>}
     >
       <p className="-mt-2 mb-3 text-[12px] text-[var(--ink-faint)]">Read from the sourced facts. None of this is a published statement by the owner.</p>
       {profile.hints.length === 0 ? (

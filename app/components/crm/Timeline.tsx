@@ -109,7 +109,7 @@ export default function Timeline({
           {activities.map((a) => (
             <li key={a.id} className="flex items-start gap-3">
               <span
-                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--tint-mist)] text-[var(--ink-soft)]"
+                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--tint-1)] text-[var(--ink-soft)]"
                 aria-hidden
               >
                 <ActivityIcon />

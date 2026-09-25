@@ -125,7 +125,7 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
         {/* Top bar */}
         <header className="sticky top-0 z-30 border-b border-[var(--rule)] bg-[var(--paper)]/90 backdrop-blur">
           <div className="mx-auto flex min-h-[64px] w-full max-w-[1240px] items-center gap-3 px-4 md:px-8">
-          <span className="display text-[18px] md:hidden">{firm.productName}</span>
+          <span className="display inline-flex items-center gap-2 text-[18px] md:hidden"><Mark size={22} />{firm.productName}</span>
           <form action="/companies" method="get" role="search" className="hidden max-w-[420px] flex-1 md:block">
             <label htmlFor="global-search" className="sr-only">Search companies</label>
             <div className="flex h-11 items-center gap-2 rounded-full bg-[var(--surface)] px-4 shadow-[var(--shadow-card)]">
@@ -146,7 +146,7 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
             </span>
             <details className="relative">
               <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 rounded-full bg-[var(--surface)] py-1 pl-1 pr-3 shadow-[var(--shadow-card)]">
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--tint-sage)] text-[13px] font-bold text-[var(--ink)]">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--tint-2)] text-[13px] font-bold text-[var(--ink)]">
                   {initials(user.name)}
                 </span>
                 <span className="hidden text-left leading-tight sm:block">

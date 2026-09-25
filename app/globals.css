@@ -8,30 +8,34 @@
    The accent belongs to ONE dominant action per view; every other action is
    navy-outline or quiet. */
 :root {
-  /* colour */
-  --paper: #f3f4f6;       /* canvas: cool light grey (Dashboards V2) */
-  --paper-deep: #f7f8fa;  /* table head, recessed rows */
+  /* colour: ONE hue family (Jack, 2026-09-25: "one type of theme color"), taken
+     from logo 21 "Offset Half Discs": navy #0F1B33 (dark disc) and royal
+     #1E3A8A (blue disc). Neutrals carry a slight blue bias. Red and one muted
+     amber are the only other hues, and only where they carry meaning. */
+  --navy: #0f1b33;         /* logo dark disc: active rail item, primary buttons */
+  --navy-soft: #1b2b4d;    /* its hover */
+  --royal: #1e3a8a;        /* logo blue disc */
+  --royal-deep: #172e6e;
+  --blue-300: #9db3e6;     /* the blue disc on navy (mark on dark) */
+  --paper: #f1f4f9;       /* canvas: cool blue-grey */
+  --paper-deep: #f6f8fc;  /* table head, recessed rows */
   --surface: #ffffff;     /* panels and tables, one step up from paper */
-  --ink: #111827;         /* near-black text */
-  --ink-soft: #4b5563;    /* secondary text, 7:1 on paper */
-  --ink-faint: #6b7280;   /* tertiary text, 4.6:1 on white */
-  --rule: #eceef2;        /* the hairline */
-  --rule-strong: #d6dae1; /* input borders */
-  --navy: #111827;         /* primary dark: active rail item, primary buttons */
-  --navy-soft: #1f2937;
-  --accent: #0079c2;      /* the one dominant action */
-  --accent-deep: #00629e; /* its hover */
+  --ink: #0f1b33;         /* text = logo navy, 17:1 on white */
+  --ink-soft: #45526e;    /* secondary text, 7.8:1 on white, 4.9:1 on tint-4 */
+  --ink-faint: #56637f;   /* tertiary text, 6:1 on white, 4.5:1+ on paper and tint-1/2 */
+  --rule: #e5e9f2;        /* the hairline */
+  --rule-strong: #ccd5e4; /* input borders */
+  --accent: #1e3a8a;      /* the one dominant action (royal) */
+  --accent-deep: #172e6e; /* its hover */
   --accent-ink: #ffffff;
-  --good: #1f7a4d;
-  --warn: #9a5b0b;
-  --bad: #b42318;
-  /* soft tints for KPI tiles and chips (Dashboards V2 reference, 2026-09-24);
-     each carries a meaning, never decoration: sky = pipeline, sand = attention,
-     sage = replies/good, mist = signals */
-  --tint-sky: #dcecfb;
-  --tint-sand: #fde9d9;   /* peach */
-  --tint-sage: #e6f5c9;   /* lime */
-  --tint-mist: #ebe7fb;   /* lilac */
+  --good: #1e3a8a;        /* success reads as the brand blue; the check icon + word carry it */
+  --warn: #8a5a0f;        /* the ONE muted amber, warnings only */
+  --bad: #b42318;         /* errors and destructive only */
+  /* blue tint ladder, lightest to deepest: KPI tiles, lanes, chips, icon chips */
+  --tint-1: #e8eef9;
+  --tint-2: #dbe4f5;
+  --tint-3: #cdd9f0;
+  --tint-4: #bfcdea;
 
   /* radius scale: never one radius everywhere */
   --radius-sm: 10px; /* inputs, chips */
@@ -45,9 +49,9 @@
   --font-display: var(--font-jakarta), var(--font-inter), system-ui, sans-serif; /* headings + numbers */
   --font-body: var(--font-inter), system-ui, sans-serif;
   --row-h: 52px;
-  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 2px 8px rgba(17, 24, 39, 0.04);
-  --shadow-lift: 0 10px 24px rgba(17, 24, 39, 0.08);
-  --status-ok-bg: #e7f6ec; --status-info-bg: #eef2f7; --status-warn-bg: #fdf1e1; --status-stop-bg: #fdecea; --status-none-bg: #f1f2f4;
+  --shadow-card: 0 1px 2px rgba(15, 27, 51, 0.04), 0 2px 8px rgba(15, 27, 51, 0.05);
+  --shadow-lift: 0 10px 24px rgba(15, 27, 51, 0.09);
+  --status-ok-bg: #e3eaf8; --status-info-bg: #eef2f8; --status-warn-bg: #fbf1de; --status-stop-bg: #fdecea; --status-none-bg: #eef1f6;
 }
 
 html, body { height: 100%; }
@@ -80,7 +84,7 @@ input[type="checkbox"] { accent-color: var(--navy); }
 .section-tabs ul { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow-card); }
 .section-tabs a { display: flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--ink-soft); transition: background-color .2s ease-out, color .2s ease-out; }
 .section-tabs a:hover { color: var(--ink); background: var(--paper); }
-.section-tabs a[aria-current="page"] { color: #fff; background: var(--navy); font-weight: 600; }
+.section-tabs a[aria-current="page"] { color: var(--accent-ink); background: var(--navy); font-weight: 600; }
 @media (max-width: 767px) { .section-tabs a { min-height: 44px; } }
 /* V2 cards: every surface panel gets the soft card shadow; hover lift on linked cards */
 .card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
@@ -93,14 +97,14 @@ input[type="checkbox"] { accent-color: var(--navy); }
    and a glow; the Quiet Ledger rules apply everywhere past the sign-in.
    --------------------------------------------------------------------------- */
 .os-signin {
-  --os-bg: #07080f;
-  --os-card: #10131f;
-  --os-field: #171b2c;
-  --os-border: #1f2437;
-  --os-text: #eef1f8;
-  --os-muted: #7d87a6;   /* lifted from the OS #545d7d so small text clears AA on the card */
-  --os-accent: #3d6bf0;
-  --os-accent-deep: #1e44b8;
+  --os-bg: #081022;      /* deep navy, the logo family */
+  --os-card: #0f1b33;    /* logo navy */
+  --os-field: #16264a;
+  --os-border: #22345c;
+  --os-text: #eef2fa;
+  --os-muted: #8d9bbd;   /* 6.2:1 on the card */
+  --os-accent: #5b7fe0;  /* royal lifted for dark: focus rings */
+  --os-accent-deep: #1e3a8a;
   --os-red: #fb7185;
   min-height: 100vh;
   display: flex;
@@ -125,7 +129,7 @@ input[type="checkbox"] { accent-color: var(--navy); }
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .os-signin-head { text-align: center; margin-bottom: 6px; }
-.os-signin-mark { display: block; margin: 0 auto 12px; filter: drop-shadow(0 0 9px rgba(61, 107, 240, 0.6)); }
+.os-signin-mark { display: block; margin: 0 auto 12px; color: var(--os-text); }
 .os-signin-title { font-family: var(--font-body); font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: var(--os-text); }
 .os-signin-sub { margin-top: 5px; font-size: 12.5px; color: var(--os-muted); }
 .os-signin-field { display: flex; flex-direction: column; gap: 6px; }
@@ -144,7 +148,7 @@ input[type="checkbox"] { accent-color: var(--navy); }
 }
 .os-signin-wrap .os-signin-input { padding-right: 60px; }
 .os-signin-input::placeholder { color: var(--os-muted); }
-.os-signin-input:focus-visible { border-color: var(--os-accent); box-shadow: 0 0 0 3px rgba(61, 107, 240, 0.25); outline: none; }
+.os-signin-input:focus-visible { border-color: var(--os-accent); box-shadow: 0 0 0 3px rgba(91, 127, 224, 0.3); outline: none; }
 .os-signin-input[aria-invalid="true"] { border-color: var(--os-red); }
 .os-signin-reveal {
   position: absolute;
@@ -171,7 +175,7 @@ input[type="checkbox"] { accent-color: var(--navy); }
   font-size: 15px;
   font-weight: 700;
   color: #ffffff;
-  background: linear-gradient(135deg, var(--os-accent), var(--os-accent-deep));
+  background: linear-gradient(135deg, #2f54b8, var(--os-accent-deep));
 }
 .os-signin-button:disabled { opacity: 0.6; cursor: not-allowed; }
 .os-signin-button:focus-visible { outline: 2px solid var(--os-text); outline-offset: 2px; }

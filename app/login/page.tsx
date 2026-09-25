@@ -1,6 +1,6 @@
 "use client";
 // Sign-in in the Wing Digital OS house style (Jack's call, 2026-09-20): the dark
-// obsidian screen, one centred card, the builder mark, centred fields, the blue
+// navy screen, one centred card, the Deal Desk mark (logo 21), centred fields, the blue
 // gradient "Enter" button. It deliberately does NOT follow the Quiet Ledger rules
 // used inside the app (it has a shadow, a gradient and a glow): every colour and
 // effect lives in the `.os-signin` block of app/globals.css so this file stays free
@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { firm } from "../../firm.config";
+import Mark from "../components/ui/Mark";
 
 type LoginState = { kind: "credentials" | "rate_limited" | "unavailable"; message: string };
 
@@ -56,8 +57,7 @@ export default function LoginPage() {
     <div className="os-signin">
       <form className="os-signin-card" onSubmit={onSubmit} noValidate>
         <div className="os-signin-head">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/wing-mark.png" alt="" width={44} height={44} className="os-signin-mark" />
+          <Mark size={44} tone="light" className="os-signin-mark" />
           <h1 className="os-signin-title">{firm.productName}</h1>
           <p className="os-signin-sub">Sign in to continue</p>
         </div>

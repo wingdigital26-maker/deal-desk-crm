@@ -10,7 +10,7 @@ const LABELS: Record<string, string> = {
 
 export default function SignalKindBadge({ kind }: { kind: string }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-[var(--tint-mist)] px-2.5 py-1 text-xs font-semibold text-[var(--ink-soft)]">
+    <span className="inline-flex items-center rounded-full bg-[var(--tint-2)] px-2.5 py-1 text-xs font-semibold text-[var(--ink-soft)]">
       {LABELS[kind] || kind}
     </span>
   );

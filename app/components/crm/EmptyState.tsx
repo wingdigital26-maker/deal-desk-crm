@@ -12,7 +12,7 @@ export default function EmptyState({
 }) {
   return (
     <div className="card flex flex-col items-center gap-1 px-6 py-10 text-center">
-      <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--tint-sky)] text-[var(--accent-deep)]" aria-hidden>
+      <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--tint-1)] text-[var(--accent-deep)]" aria-hidden>
         <InboxIcon />
       </span>
       <p className="text-[15px] font-bold text-[var(--ink)]">{title}</p>

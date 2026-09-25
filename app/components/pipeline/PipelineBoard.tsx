@@ -306,7 +306,7 @@ export default function PipelineBoard({ stages, isOwner = false }: { stages: rea
   );
 }
 
-const STAGE_TINTS = ["var(--tint-sky)", "var(--tint-sand)", "var(--tint-sage)", "var(--tint-mist)"];
+const STAGE_TINTS = ["var(--tint-1)", "var(--tint-2)", "var(--tint-3)", "var(--tint-4)"];
 
 function StageColumn({
   stage,

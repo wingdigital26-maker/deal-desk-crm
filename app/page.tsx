@@ -165,10 +165,10 @@ export default async function TodayPage() {
     .get() as { n: number }).n;
 
   const glance: { label: string; value: number; href: string; tint: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
-    { label: "Open deals in the pipeline", value: openDeals, href: "/pipeline", tint: "var(--tint-sky)", Icon: ColumnsIcon },
-    { label: "Deals quiet 21+ days", value: quietDeals.length, href: "/pipeline", tint: "var(--tint-sand)", Icon: TriangleAlertIcon },
-    { label: "Replies waiting on you", value: unhandledReplies, href: "/outbound/replies", tint: "var(--tint-sage)", Icon: InboxIcon },
-    { label: "New signals this week", value: signals7d, href: "/sourcing/signals", tint: "var(--tint-mist)", Icon: ActivityIcon },
+    { label: "Open deals in the pipeline", value: openDeals, href: "/pipeline", tint: "var(--tint-1)", Icon: ColumnsIcon },
+    { label: "Deals quiet 21+ days", value: quietDeals.length, href: "/pipeline", tint: "var(--tint-2)", Icon: TriangleAlertIcon },
+    { label: "Replies waiting on you", value: unhandledReplies, href: "/outbound/replies", tint: "var(--tint-3)", Icon: InboxIcon },
+    { label: "New signals this week", value: signals7d, href: "/sourcing/signals", tint: "var(--tint-4)", Icon: ActivityIcon },
   ];
 
   // Week strip + schedule (Dashboards V2 pattern): every open task and deal

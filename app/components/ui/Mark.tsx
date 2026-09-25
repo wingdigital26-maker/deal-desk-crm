@@ -1,42 +1,30 @@
-// The one owned typographic device: the product initials (from firm.config,
-// never hardcoded) set in the display serif inside a square ruled frame,
-// with a double rule beneath like a ledger total line. Scales from the
-// sidebar header (28px) to the sign-in screen (about 120px). Decorative:
-// the firm and product name are always set as real text beside it.
-import { firm } from "../../../firm.config";
-
-function initialsOf(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word[0]!.toUpperCase())
-    .join("");
-}
-
+// The Deal Desk mark: logo 21 "Offset Half Discs" (Jack's pick, 2026-09-25).
+// Two half discs offset on a diagonal: the navy disc follows currentColor, the
+// blue disc takes the royal token on light grounds and a lifted blue on navy,
+// so the same mark works on white and inside the navy rail tile. Decorative:
+// the product name is always set as real text beside it or in an aria-label.
 export default function Mark({
   size = 28,
   tone = "dark",
+  className = "",
 }: {
   size?: number;
   tone?: "dark" | "light";
+  className?: string;
 }) {
-  const letters = initialsOf(firm.productName);
-  const frameClass = tone === "light" ? "border-white/35 text-white" : "border-[var(--rule-strong)] text-[var(--ink)]";
-  const ruleClass = tone === "light" ? "bg-white/35" : "bg-[var(--rule-strong)]";
-
+  const color = tone === "light" ? "text-white" : "text-[var(--navy)]";
+  const blue = tone === "light" ? "var(--blue-300)" : "var(--royal)";
   return (
-    <span
+    <svg
       aria-hidden
-      className={`inline-flex flex-shrink-0 flex-col items-center justify-center border ${frameClass}`}
-      style={{ width: size, height: size }}
+      focusable="false"
+      viewBox="10 10 80 80"
+      width={size}
+      height={size}
+      className={`flex-shrink-0 ${color} ${className}`}
     >
-      <span className="display" style={{ fontSize: Math.round(size * 0.38), lineHeight: 1 }}>
-        {letters}
-      </span>
-      <span className="flex flex-col" style={{ width: Math.round(size * 0.58), marginTop: Math.round(size * 0.1), gap: 2 }}>
-        <span className={`block h-px ${ruleClass}`} />
-        <span className={`block h-px ${ruleClass}`} />
-      </span>
-    </span>
+      <path d="M46,22A34,34 0 0 0 46,90Z" fill="currentColor" />
+      <path d="M54,10A34,34 0 0 1 54,78Z" fill={blue} />
+    </svg>
   );
 }
