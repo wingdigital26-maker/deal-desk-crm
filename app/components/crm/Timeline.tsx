@@ -24,9 +24,15 @@ const KIND_LABEL: Record<string, string> = {
   import: "Import",
 };
 
+// Fixed locale + timezone (not `undefined`, which resolves to the runtime's
+// own locale/timezone): the server renders in UTC while a visitor's browser
+// renders in whatever zone they are in, so the two disagree and React throws
+// a #418 hydration mismatch on this string. Pinning both makes server and
+// client render byte-identical text.
 function formatWhen(iso: string): string {
   try {
-    return new Date(iso.replace(" ", "T") + "Z").toLocaleString(undefined, {
+    return new Date(iso.replace(" ", "T") + "Z").toLocaleString("en-US", {
+      timeZone: "America/Chicago",
       month: "short",
       day: "numeric",
       hour: "numeric",

@@ -134,6 +134,18 @@ const FIRM_NAME = extractFirmStringField("name");
 const FIRM_MAILING_ADDRESS = extractFirmStringField("mailingAddress");
 const FIRM_FOOTER_RAW = extractFirmStringField("footer");
 
+// firm.sender.name/title are computed (demoOverride(...)) rather than string
+// literals, so they can't go through extractFirmStringField above. Mirror the
+// same override logic here instead, so the seeded owner user and the sample
+// template sign-offs match whatever the hosted demo will actually show.
+function demoOverride(envVar, fallback) {
+  if (process.env.DEAL_DESK_DEMO !== "1") return fallback;
+  const v = process.env[envVar];
+  return v && v.trim() ? v.trim() : fallback;
+}
+const FIRM_SENDER_NAME = demoOverride("DEMO_OWNER_NAME", "Jordan Hale");
+const FIRM_SENDER_TITLE = demoOverride("DEMO_OWNER_TITLE", "Managing Director");
+
 function normalizeNewlines(text) {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
@@ -444,7 +456,7 @@ if (!ownerRow || !principalRow) {
     process.exit(1);
   }
   const hash = hashPassword(password);
-  ownerRow = ownerRow || { id: 1, email: "owner@harness.local", name: "Jordan Hale", role: "owner", password_hash: hash };
+  ownerRow = ownerRow || { id: 1, email: "owner@harness.local", name: FIRM_SENDER_NAME, role: "owner", password_hash: hash };
   principalRow = principalRow || { id: 2, email: "principal@harness.local", name: "Elaine Marsh", role: "principal", password_hash: hash };
 }
 
@@ -824,7 +836,7 @@ const templateDefs = [
       "Hi {{first_name}},\n\n" +
       "I work with founder-owned companies across Texas as they think through their next chapter. Your name came up recently, and I wanted to introduce myself.\n\n" +
       "If it would be useful to compare notes on how other owners in your industry have approached growth, I would welcome a short call.\n\n" +
-      "Warm regards,\nJordan Hale\nManaging Director\nHarbor Point Advisors",
+      `Warm regards,\n${FIRM_SENDER_NAME}\n${FIRM_SENDER_TITLE}\nHarbor Point Advisors`,
     status: "approved",
   },
   {
@@ -835,7 +847,7 @@ const templateDefs = [
       "Hi {{first_name}},\n\n" +
       "It has been a while since we last spoke. I wanted to check in and see how things are going on your end.\n\n" +
       "If a client of yours is ever weighing a transition, I am glad to be a resource, no obligation either way.\n\n" +
-      "Best,\nJordan Hale\nManaging Director\nHarbor Point Advisors",
+      `Best,\n${FIRM_SENDER_NAME}\n${FIRM_SENDER_TITLE}\nHarbor Point Advisors`,
     status: "approved",
   },
   {
@@ -846,7 +858,7 @@ const templateDefs = [
       "Hi {{first_name}},\n\n" +
       "I wanted to reach out directly given the overlap between our work and {{company_name}}'s footprint in the region.\n\n" +
       "Open to a short conversation when timing allows.\n\n" +
-      "Best,\nJordan Hale",
+      `Best,\n${FIRM_SENDER_NAME}`,
     status: "pending",
   },
   {
@@ -856,7 +868,7 @@ const templateDefs = [
     body:
       "Hi {{first_name}},\n\n" +
       "Many owners we work with start thinking about the next chapter well before they act on it. If that describes where you are, I would welcome the chance to listen.\n\n" +
-      "Best,\nJordan Hale",
+      `Best,\n${FIRM_SENDER_NAME}`,
     status: "draft",
   },
   {
@@ -866,7 +878,7 @@ const templateDefs = [
     body:
       "Hi {{first_name}},\n\n" +
       "We can get you a great price for {{company_name}} quickly and easily. Let's talk.\n\n" +
-      "Jordan",
+      FIRM_SENDER_NAME.split(" ")[0],
     status: "rejected",
     review_note: "Contains a valuation promise and implies ease. Rewrite in a restrained voice before resubmitting.",
   },
@@ -1377,6 +1389,11 @@ function companyByName(name) {
 // picture, sourced the way the real scrapers would.
 {
   const co = companyByName("Cottonwood Fabrication");
+  // Its industry label is randomly assigned from OWNER_INDUSTRIES above and can
+  // land on something unrelated (e.g. "Commercial roofing supply"). Pin it to
+  // match the steel-fabrication profile facts below so the two never disagree.
+  co.industry = "Sheet metal fabrication";
+  db.prepare("UPDATE companies SET industry = ? WHERE id = ?").run(co.industry, co.id);
   const site = `https://${co.domain}`;
   const foster = contacts.find((c) => c.company_id === co.id && c.last_name === "Ashworth");
   addProfileFact(co.id, "owner_name", foster ? `${foster.first_name} ${foster.last_name}` : "Foster Ashworth", {

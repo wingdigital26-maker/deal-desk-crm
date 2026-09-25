@@ -1,5 +1,20 @@
 // The ONLY file that names a firm. Everything reusable reads from here,
 // so the harness can be re-skinned for another bank by swapping this file.
+//
+// The hosted public demo (DEAL_DESK_DEMO=1) is meant to greet and sign as
+// whoever is showing it, without that name ever landing in the public repo's
+// code. DEMO_OWNER_NAME / DEMO_OWNER_TITLE env vars (set on the Vercel
+// project, never committed) override the sender name/title below, but only
+// when DEAL_DESK_DEMO=1 -- a normal production deploy always uses the
+// defaults. isDemo() lives in app/lib/demo-policy.ts specifically because it
+// has no Node imports, so it is safe to pull in from this config file too.
+import { isDemo } from "./app/lib/demo-policy";
+
+function demoOverride(envVar: "DEMO_OWNER_NAME" | "DEMO_OWNER_TITLE", fallback: string): string {
+  if (!isDemo()) return fallback;
+  const v = process.env[envVar];
+  return v && v.trim() ? v.trim() : fallback;
+}
 
 export type Segment = {
   id: string;
@@ -15,8 +30,8 @@ export const firm = {
   builtBy: "Wing Digital", // vendor credit on the sign-in screen
   regulated: true, // FINRA member: outbound content needs principal pre-approval
   sender: {
-    name: "Your Name",
-    title: "Managing Director",
+    name: demoOverride("DEMO_OWNER_NAME", "Jordan Hale"),
+    title: demoOverride("DEMO_OWNER_TITLE", "Managing Director"),
   },
   // Deal pipeline stages, in order.
   dealStages: [
