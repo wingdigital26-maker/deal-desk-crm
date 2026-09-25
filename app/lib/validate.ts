@@ -99,6 +99,33 @@ export function integerRange(
   return n;
 }
 
+/** Any finite number (decimals allowed) within [min, max]. */
+export function numberRange(
+  field: string,
+  value: unknown,
+  min: number,
+  max: number,
+  opts: { required?: boolean } = {}
+): number | null {
+  if (value === undefined || value === null || value === "") {
+    if (opts.required) throw new ValidationError(field, `${field} is required`);
+    return null;
+  }
+  if (typeof value !== "number" && typeof value !== "string") {
+    throw new ValidationError(field, `${field} must be a number`);
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) throw new ValidationError(field, `${field} must be a number`);
+  if (n < min || n > max) throw new ValidationError(field, `${field} must be between ${min} and ${max}`);
+  return n;
+}
+
+/** Whole dollars, zero up to ten trillion. */
+export const money = (field: string, value: unknown) => integerRange(field, value, 0, 10_000_000_000_000);
+
+/** 0-100, decimals allowed (a 2.5% success fee). */
+export const percent = (field: string, value: unknown) => numberRange(field, value, 0, 100);
+
 export const employees = (field: string, value: unknown, opts?: { required?: boolean }) =>
   integerRange(field, value, 0, 5_000_000, opts);
 

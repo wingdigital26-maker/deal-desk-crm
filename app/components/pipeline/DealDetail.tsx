@@ -10,7 +10,10 @@ import { FieldInput, inputClass } from "../crm/Field";
 import EmptyState from "../crm/EmptyState";
 import Timeline, { type Activity } from "../crm/Timeline";
 import { formatDate, isOverdue } from "./dateUtils";
-import type { Deal, Task } from "./types";
+import DealEconomics from "./DealEconomics";
+import DealTeam from "./DealTeam";
+import type { StageDefaults } from "../../lib/dealMath";
+import type { Deal, Task, TeamMember, UserOption } from "./types";
 
 const SITUATIONS = [
   { value: "growth-partner", label: "Growth partner" },
@@ -25,12 +28,18 @@ export default function DealDetail({
   timeline,
   stages,
   isOwner = false,
+  cfg,
+  team,
+  users,
 }: {
   deal: Deal;
   tasks: Task[];
   timeline: Activity[];
   stages: readonly string[];
   isOwner?: boolean;
+  cfg: StageDefaults;
+  team: TeamMember[];
+  users: UserOption[];
 }) {
   const router = useRouter();
   const [deal, setDeal] = useState(initialDeal);
@@ -203,6 +212,8 @@ export default function DealDetail({
           </div>
         </Panel>
 
+        <DealEconomics deal={deal} cfg={cfg} onSaved={(d) => setDeal((cur) => ({ ...cur, ...d }))} />
+
         <Panel title="Timeline">
           <Timeline
             activities={timeline}
@@ -267,6 +278,8 @@ export default function DealDetail({
             </ul>
           )}
         </Panel>
+
+        <DealTeam dealId={deal.id} initial={team} users={users} />
 
         <Panel title="Company">
           <div className="text-sm text-[var(--ink)]">

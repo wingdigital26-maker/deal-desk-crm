@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS deals (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Deal team: many users per deal, each with a role. deals.owner_user_id stays
+-- the creator; the team is who works the mandate.
+CREATE TABLE IF NOT EXISTS deal_team (
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  role TEXT NOT NULL DEFAULT 'execution' CHECK (role IN ('lead','coverage','execution','analyst','other')),
+  added_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (deal_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL, due TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -218,6 +227,17 @@ const COLUMN_MIGRATIONS: [table: string, column: string, ddl: string][] = [
   ["mailboxes", "domain", "TEXT"],
   ["mailboxes", "daily_cap", "INTEGER"],               // provider-side daily limit; tightens the ramp, never loosens it
   ["companies", "profile_refreshed_at", "TEXT"],
+  // P1 deal economics (dollars as whole numbers; pct and probability 0-100).
+  // Internal-only: fee words are banned from outbound COPY, not from deal data.
+  ["deals", "fee_terms", "TEXT"],
+  ["deals", "retainer", "INTEGER"],
+  ["deals", "success_fee_pct", "REAL"],
+  ["deals", "ebitda", "INTEGER"],
+  ["deals", "enterprise_value", "INTEGER"],
+  ["deals", "expected_close", "TEXT"],
+  ["deals", "probability", "INTEGER"],
+  // Touch cadence: remind on Today when a relationship goes quiet this long.
+  ["contacts", "touch_every_days", "INTEGER"],
 ];
 
 function migrate(d: DatabaseSync) {

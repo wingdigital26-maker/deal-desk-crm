@@ -1468,6 +1468,58 @@ function companyByName(name) {
 }
 
 // ---------------------------------------------------------------------------
+// 17c. P1 deal economics, deal teams and touch cadence (fictional figures).
+// Deterministic, no PRNG draws, so every earlier section stays byte-identical.
+// ---------------------------------------------------------------------------
+{
+  const ECON_STAGES = new Set(["NDA", "Engaged", "In Market", "LOI", "Closed"]);
+  const updEcon = db.prepare(
+    `UPDATE deals SET ebitda = ?, enterprise_value = ?, retainer = ?, success_fee_pct = ?, probability = ?, expected_close = ?, fee_terms = ? WHERE id = ?`
+  );
+  const ebitdas = [3_200_000, 4_800_000, 6_500_000, 9_100_000, 5_400_000, 12_000_000, 7_700_000, 3_900_000, 14_500_000, 8_300_000];
+  const multiples = [6.5, 7, 8, 8.5, 7.5, 9, 6, 7.25, 10, 8];
+  let n = 0;
+  for (const d of deals) {
+    if (!ECON_STAGES.has(d.stage)) continue;
+    const ebitda = ebitdas[n % ebitdas.length];
+    const ev = Math.round(ebitda * multiples[n % multiples.length]);
+    const retainer = [50_000, 75_000, 60_000, 100_000][n % 4];
+    const pct = [3, 2.75, 3.5, 2.5][n % 4];
+    const prob = n % 3 === 0 ? null : [35, 55, 70][n % 3]; // some deals use the stage default
+    const close = d.stage === "Closed" ? isoDate(daysFromToday(-20 - n * 9)) : isoDate(daysFromToday(35 + n * 28));
+    updEcon.run(ebitda, ev, retainer, pct, prob, close, "Retainer credited against the success fee. 12-month tail.", d.id);
+    n++;
+  }
+  // Deal team: the owner leads the later-stage deals, the principal covers, the analyst executes.
+  const insTeam = db.prepare("INSERT OR IGNORE INTO deal_team (deal_id, user_id, role, added_at) VALUES (?,?,?,?)");
+  for (const d of deals) {
+    if (!ECON_STAGES.has(d.stage)) continue;
+    insTeam.run(d.id, 1, "lead", isoDateTime(daysFromToday(-30)));
+    insTeam.run(d.id, 2, "coverage", isoDateTime(daysFromToday(-30)));
+    insTeam.run(d.id, 3, "analyst", isoDateTime(daysFromToday(-25)));
+  }
+  // Touch cadence: referral-source contacts every 60 days, a few owners monthly.
+  const referralContacts = db
+    .prepare("SELECT c.id FROM contacts c JOIN companies co ON co.id = c.company_id WHERE co.segment_id = 'referrals' AND c.do_not_contact = 0 ORDER BY c.id LIMIT 6")
+    .all();
+  const ownerContacts = db
+    .prepare("SELECT c.id FROM contacts c JOIN companies co ON co.id = c.company_id WHERE co.segment_id = 'owners' AND c.do_not_contact = 0 ORDER BY c.id LIMIT 4")
+    .all();
+  const setCadence = db.prepare("UPDATE contacts SET touch_every_days = ? WHERE id = ?");
+  const insTouch = db.prepare("INSERT INTO activities (kind, body, contact_id, company_id, user_id, created_at) VALUES ('call', ?, ?, (SELECT company_id FROM contacts WHERE id = ?), 1, ?)");
+  referralContacts.forEach((c, i) => {
+    setCadence.run(60, c.id);
+    // Half are overdue (last call 70-100 days ago), half were called recently.
+    const ago = i % 2 === 0 ? 70 + i * 10 : 12 + i * 3;
+    insTouch.run("Caught up on who in their book is thinking about a sale.", c.id, c.id, isoDateTime(daysFromToday(-ago)));
+  });
+  ownerContacts.forEach((c, i) => {
+    setCadence.run(30, c.id);
+    if (i % 2 === 0) insTouch.run("Quick check-in call.", c.id, c.id, isoDateTime(daysFromToday(-(40 + i * 5))));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 18. Summary + integrity checks
 // ---------------------------------------------------------------------------
 function count(table) {

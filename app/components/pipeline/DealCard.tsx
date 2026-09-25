@@ -3,6 +3,7 @@ import Link from "next/link";
 import StatusLabel from "../ui/StatusLabel";
 import { ChevronDownIcon } from "../ui/icons";
 import { formatDate, isOverdue } from "./dateUtils";
+import { formatMoney } from "../../lib/dealMath";
 import type { Deal } from "./types";
 
 export default function DealCard({
@@ -31,6 +32,13 @@ export default function DealCard({
         <div className="line-clamp-2 truncate text-sm font-bold text-[var(--ink)] hover:underline">{deal.company_name}</div>
         <div className="mt-0.5 line-clamp-2 text-xs text-[var(--ink-soft)]">{deal.title}</div>
       </Link>
+      {(deal.enterprise_value != null || deal.ebitda != null) && (
+        <div className="numeric mt-1.5 text-[12px] text-[var(--ink-soft)]">
+          {deal.enterprise_value != null && <>EV {formatMoney(deal.enterprise_value)}</>}
+          {deal.enterprise_value != null && deal.ebitda != null && " · "}
+          {deal.ebitda != null && <>EBITDA {formatMoney(deal.ebitda)}</>}
+        </div>
+      )}
       {deal.next_step ? (
         <div className="mt-2 truncate text-xs text-[var(--ink-soft)]">{deal.next_step}</div>
       ) : (

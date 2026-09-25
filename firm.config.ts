@@ -45,6 +45,22 @@ export const firm = {
     "Closed",
     "Passed",
   ],
+  // Default close probability (0-100) per stage, used for the weighted fee
+  // forecast only when a deal has no probability of its own. The UI labels it
+  // "stage default" so nobody mistakes it for the banker's read.
+  stageProbability: {
+    Sourced: 5,
+    Contacted: 10,
+    "In Dialogue": 15,
+    NDA: 20,
+    Engaged: 40,
+    "In Market": 55,
+    LOI: 75,
+    Closed: 100,
+    Passed: 0,
+  } as Record<string, number>,
+  // Stages that end a deal: excluded from open-pipeline sums and reminders.
+  closedStages: ["Closed", "Passed"],
   // Target segments are configurable because the mandate is mixed:
   // founder-owned companies, financial institutions, and referral sources.
   segments: [

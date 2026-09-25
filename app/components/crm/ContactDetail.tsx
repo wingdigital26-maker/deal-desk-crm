@@ -4,6 +4,7 @@ import { Field } from "./Field";
 import ContactForm, { type ContactFormValues } from "./ContactForm";
 import DoNotContactToggle from "./DoNotContactToggle";
 import FindEmailAction from "./FindEmailAction";
+import TouchCadence from "./TouchCadence";
 import StatusLabel from "../ui/StatusLabel";
 import Panel from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -13,7 +14,9 @@ export default function ContactDetail({
   contact,
   companyName,
   companies,
+  cadence = null,
 }: {
+  cadence?: number | null;
   contact: ContactFormValues;
   companyName: string | null;
   companies: { id: number; name: string }[];
@@ -64,6 +67,9 @@ export default function ContactDetail({
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[var(--rule)] pt-4">
         <DoNotContactToggle contactId={contact.id!} value={Boolean(contact.do_not_contact)} />
         {!contact.email && <FindEmailAction contactIds={[contact.id!]} label="Find email" />}
+      </div>
+      <div className="mt-4 border-t border-[var(--rule)] pt-4">
+        <TouchCadence contactId={contact.id!} value={cadence} />
       </div>
     </Panel>
   );

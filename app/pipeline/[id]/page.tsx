@@ -4,7 +4,7 @@ import { db } from "../../lib/db";
 import { firm } from "../../../firm.config";
 import { ButtonLink } from "../../components/ui/Button";
 import DealDetail from "../../components/pipeline/DealDetail";
-import type { Deal, Task } from "../../components/pipeline/types";
+import type { Deal, Task, TeamMember, UserOption } from "../../components/pipeline/types";
 import type { Activity } from "../../components/crm/Timeline";
 
 export default async function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,6 +35,15 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
     )
     .all(id) as Activity[];
 
+  const team = db()
+    .prepare(
+      `SELECT t.user_id, u.name, t.role FROM deal_team t JOIN users u ON u.id = t.user_id
+       WHERE t.deal_id = ? ORDER BY CASE t.role WHEN 'lead' THEN 0 ELSE 1 END, u.name`
+    )
+    .all(id) as TeamMember[];
+  const users = db().prepare("SELECT id, name FROM users WHERE disabled = 0 ORDER BY name").all() as UserOption[];
+  const cfg = { stageProbability: firm.stageProbability, closedStages: firm.closedStages };
+
   return (
     <div>
       <div className="mb-4">
@@ -42,7 +51,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
           Back to pipeline
         </ButtonLink>
       </div>
-      <DealDetail deal={deal} tasks={tasks} timeline={timeline} stages={firm.dealStages} isOwner={user.role === "owner"} />
+      <DealDetail deal={deal} tasks={tasks} timeline={timeline} stages={firm.dealStages} isOwner={user.role === "owner"} cfg={cfg} team={team} users={users} />
     </div>
   );
 }

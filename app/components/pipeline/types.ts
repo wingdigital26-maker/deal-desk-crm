@@ -13,7 +13,17 @@ export type Deal = {
   company_name: string;
   company_domain: string | null;
   last_activity_at: string | null;
+  fee_terms?: string | null;
+  retainer?: number | null;
+  success_fee_pct?: number | null;
+  ebitda?: number | null;
+  enterprise_value?: number | null;
+  expected_close?: string | null;
+  probability?: number | null;
 };
+
+export type TeamMember = { user_id: number; name: string; role: string };
+export type UserOption = { id: number; name: string };
 
 export type Task = {
   id: number;

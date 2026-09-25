@@ -27,6 +27,7 @@ type ContactRow = {
   company_id: number | null;
   do_not_contact: number;
   source: string;
+  touch_every_days: number | null;
 };
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -88,7 +89,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               <BusinessCard profile={profile} />
             </>
           )}
-          <ContactDetail contact={contact} companyName={company?.name ?? null} companies={companies} />
+          <ContactDetail contact={contact} companyName={company?.name ?? null} companies={companies} cadence={contact.touch_every_days} />
           <Panel title="Timeline">
             <Timeline activities={activities} postUrl="/api/activities" extra={{ contact_id: contactId }} />
           </Panel>

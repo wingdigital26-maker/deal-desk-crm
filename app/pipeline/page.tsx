@@ -9,5 +9,11 @@ export default async function PipelinePage() {
   const user = await currentUser();
   if (!user) redirect("/login");
 
-  return <PipelineBoard stages={firm.dealStages} isOwner={user.role === "owner"} />;
+  return (
+    <PipelineBoard
+      stages={firm.dealStages}
+      isOwner={user.role === "owner"}
+      cfg={{ stageProbability: firm.stageProbability, closedStages: firm.closedStages }}
+    />
+  );
 }

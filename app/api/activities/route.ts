@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 import { db, audit } from "../../lib/db";
 import { requireUser } from "../../lib/session";
 
-const KINDS = ["note", "call", "email-out", "email-in", "stage-change", "signal", "import"];
+const KINDS = ["note", "call", "meeting", "email-out", "email-in", "stage-change", "signal", "import"];
 
 // GET ?company_id= or ?contact_id= or ?deal_id= -> timeline rows, newest first.
 export async function GET(req: Request) {

@@ -8,6 +8,9 @@ import PageHeader from "./components/crm/PageHeader";
 import Panel from "./components/ui/Panel";
 import StatusLabel from "./components/ui/StatusLabel";
 import { ButtonLink } from "./components/ui/Button";
+import { relationshipsDue } from "./lib/cadence";
+import { LogTouchButton, cadenceLabel } from "./components/crm/TouchCadence";
+import { displayName } from "./components/crm/format";
 import { ActivityIcon, ColumnsIcon, InboxIcon, TriangleAlertIcon } from "./components/ui/icons";
 
 export const metadata = { title: `Today | ${firm.productName}` };
@@ -120,6 +123,8 @@ export default async function TodayPage() {
        ORDER BY last_activity_at ASC`
     )
     .all() as QuietDealRow[];
+
+  const dueRelationships = relationshipsDue(8);
 
   let replies: ReplyRow[] = [];
   let repliesUnavailable = false;
@@ -357,6 +362,33 @@ export default async function TodayPage() {
         </section>
 
         <div className="flex min-w-0 flex-col gap-6">
+          <Panel title="Relationships due for a touch" actions={<ButtonLink href="/contacts" variant="quiet" size="sm">Contacts</ButtonLink>}>
+            {dueRelationships.length === 0 ? (
+              <p className="text-sm text-[var(--ink-soft)]">
+                Nobody is overdue. Set a touch reminder on any contact or referral source and they show up here when they go quiet.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {dueRelationships.map((r) => (
+                  <li key={r.id} className="flex min-w-0 items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <Link href={`/contacts/${r.id}`} className="block truncate text-[var(--ink)] hover:underline">
+                        {displayName(r)}
+                      </Link>
+                      <div className="mt-0.5 truncate text-xs text-[var(--ink-soft)]">
+                        {r.company_name ? `${r.company_name} · ` : ""}
+                        {r.days_since == null ? "never touched" : `${r.days_since} days since last touch`}
+                        {" · "}
+                        {cadenceLabel(r.touch_every_days).toLowerCase()}
+                      </div>
+                    </div>
+                    <LogTouchButton contactId={r.id} companyId={r.company_id} label="Log touch" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
           <Panel title="Going quiet" actions={<ButtonLink href="/pipeline" variant="quiet" size="sm">See all</ButtonLink>}>
             {quietDeals.length === 0 ? (
               <p className="text-sm text-[var(--ink-soft)]">Every open deal has had activity in the last 21 days.</p>

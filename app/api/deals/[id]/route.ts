@@ -93,6 +93,33 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       fields.push("next_step_due = ?");
       values.push(v.isoDate("next_step_due", body.next_step_due));
     }
+    // Deal economics (P1). Each is optional; "" or null clears it.
+    const money: [string, (f: string, x: unknown) => number | null][] = [
+      ["retainer", v.money],
+      ["ebitda", v.money],
+      ["enterprise_value", v.money],
+      ["success_fee_pct", v.percent],
+      ["probability", (f, x) => v.integerRange(f, x, 0, 100)],
+    ];
+    for (const [key, check] of money) {
+      if (key in body) {
+        const val = check(key, body[key]);
+        fields.push(`${key} = ?`);
+        values.push(val);
+        detail[key] = val;
+      }
+    }
+    if ("fee_terms" in body) {
+      fields.push("fee_terms = ?");
+      values.push(v.boundedString("fee_terms", body.fee_terms, 1000));
+      detail.fee_terms_changed = true;
+    }
+    if ("expected_close" in body) {
+      const val = v.isoDate("expected_close", body.expected_close);
+      fields.push("expected_close = ?");
+      values.push(val);
+      detail.expected_close = val;
+    }
     if ("primary_contact_id" in body) {
       const pcid =
         body.primary_contact_id != null && body.primary_contact_id !== ""

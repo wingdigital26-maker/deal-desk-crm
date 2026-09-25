@@ -70,6 +70,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if ("email_status" in body) fields.email_status = str(body.email_status);
     if ("phone" in body) fields.phone = str(body.phone);
     if ("linkedin_url" in body) fields.linkedin_url = v.url("linkedin_url", body.linkedin_url);
+    if ("touch_every_days" in body) {
+      fields.touch_every_days = v.integerRange("touch_every_days", body.touch_every_days, 1, 730);
+    }
     if ("company_id" in body) {
       fields.company_id =
         body.company_id != null && body.company_id !== ""

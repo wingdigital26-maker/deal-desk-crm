@@ -8,11 +8,13 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import DealCard from "./DealCard";
 import CreateDealForm from "./CreateDealForm";
 import { formatDate, isOverdue } from "./dateUtils";
+import PipelineForecast from "./PipelineForecast";
+import { formatMoney, weightedFee, type StageDefaults } from "../../lib/dealMath";
 import type { Deal } from "./types";
 
 type ViewMode = "board" | "list";
 
-export default function PipelineBoard({ stages, isOwner = false }: { stages: readonly string[]; isOwner?: boolean }) {
+export default function PipelineBoard({ stages, isOwner = false, cfg }: { stages: readonly string[]; isOwner?: boolean; cfg: StageDefaults }) {
   const [deals, setDeals] = useState<Deal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>("board");
@@ -180,6 +182,8 @@ export default function PipelineBoard({ stages, isOwner = false }: { stages: rea
         </div>
       )}
 
+      <PipelineForecast deals={deals} cfg={cfg} />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="card flex p-0.5 text-sm">
           <button
@@ -277,6 +281,7 @@ export default function PipelineBoard({ stages, isOwner = false }: { stages: rea
       ) : (
         <DealTable
           deals={deals}
+          cfg={cfg}
           stages={stages}
           onMove={moveDeal}
           isOwner={isOwner}
@@ -387,12 +392,14 @@ function StageColumn({
 
 function DealTable({
   deals,
+  cfg,
   stages,
   onMove,
   isOwner,
   onRequestDelete,
 }: {
   deals: Deal[];
+  cfg: StageDefaults;
   stages: readonly string[];
   onMove: (dealId: number, stage: string) => void;
   isOwner: boolean;
@@ -420,6 +427,12 @@ function DealTable({
           </select>
         </label>
       ),
+    },
+    { key: "ev", label: "EV", render: (d) => <span className="numeric text-[var(--ink-soft)]">{formatMoney(d.enterprise_value) || "-"}</span> },
+    {
+      key: "weighted",
+      label: "Weighted fee",
+      render: (d) => <span className="numeric text-[var(--ink-soft)]">{formatMoney(weightedFee(d, cfg)) || "-"}</span>,
     },
     { key: "next_step", label: "Next step", render: (d) => <span className="text-[var(--ink-soft)]">{d.next_step ?? "-"}</span> },
     {
