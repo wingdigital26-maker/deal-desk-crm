@@ -9,7 +9,8 @@ import Panel from "./components/ui/Panel";
 import StatusLabel from "./components/ui/StatusLabel";
 import { ButtonLink } from "./components/ui/Button";
 import { relationshipsDue } from "./lib/cadence";
-import { LogTouchButton, cadenceLabel } from "./components/crm/TouchCadence";
+import { LogTouchButton } from "./components/crm/TouchCadence";
+import { cadenceLabel } from "./lib/cadenceLabels";
 import { displayName } from "./components/crm/format";
 import { ActivityIcon, ColumnsIcon, InboxIcon, TriangleAlertIcon } from "./components/ui/icons";
 
