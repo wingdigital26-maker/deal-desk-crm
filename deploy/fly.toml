@@ -1,0 +1,40 @@
+# Fly.io app definition for Option A in docs/DEPLOY.md: one always-on
+# machine, one persistent volume for the SQLite file. Not deployed here;
+# this is a recipe. Rename the app before using it for real (Fly app names
+# are globally unique).
+
+app = "banker-harness"
+primary_region = "dfw"  # Dallas, close to the firm; change if the firm moves.
+
+[build]
+  dockerfile = "deploy/Dockerfile"
+
+[env]
+  # Non-secret values only. Secrets (SESSION_SECRET, APOLLO_API_KEY,
+  # SEED_PASSWORD) are set with `fly secrets set NAME=value`, never here,
+  # so they never end up committed to a repo.
+  HARNESS_DB_PATH = "/app/data/harness.db"
+  NODE_ENV = "production"
+  OUTBOUND_SEND_ENABLED = "0"
+
+[[mounts]]
+  # The persistent disk. Without this, the database is wiped on every
+  # deploy because containers are otherwise stateless.
+  source = "harness_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false   # keep it always-on; this is a single-instance app, not a scale-to-zero one
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[http_service.checks]]
+  # Mirrors the Dockerfile HEALTHCHECK so Fly's own router also knows the
+  # app is actually answering before routing traffic to it.
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/login"
