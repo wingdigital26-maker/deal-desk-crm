@@ -3,7 +3,7 @@
 # this is a recipe. Rename the app before using it for real (Fly app names
 # are globally unique).
 
-app = "banker-harness"
+app = "deal-desk-CHANGEME"  # Fly app names are global; rename before `fly launch` / `fly deploy`.
 primary_region = "dfw"  # Dallas, close to the firm; change if the firm moves.
 
 [build]
@@ -14,8 +14,13 @@ primary_region = "dfw"  # Dallas, close to the firm; change if the firm moves.
   # SEED_PASSWORD) are set with `fly secrets set NAME=value`, never here,
   # so they never end up committed to a repo.
   HARNESS_DB_PATH = "/app/data/harness.db"
+  HARNESS_FILES_DIR = "/app/data/files"
   NODE_ENV = "production"
+  # Login stays on. Never set HARNESS_NO_LOGIN here; it is hard-off in
+  # production builds anyway (see app/lib/session.ts), but the absence of
+  # the variable here is intentional and should stay that way.
   OUTBOUND_SEND_ENABLED = "0"
+  GRAPH_CAPTURE_ENABLED = "0"
 
 [[mounts]]
   # The persistent disk. Without this, the database is wiped on every

@@ -7,11 +7,20 @@ Read docs/DEPLOY.md first for why this is the recommended path right now.
 
 - `Dockerfile`: builds the app into a container image.
 - `fly.toml`: a working Fly.io app definition that uses that Dockerfile.
-  The same Dockerfile works on Railway or Render with their own config
-  formats, or on a plain VPS with `docker run` directly; fly.toml is one
-  concrete example, not the only option.
+  Rename the placeholder app name (`deal-desk-CHANGEME`) before use; Fly app
+  names are global.
+- `railway.json`: the Railway equivalent, using the same Dockerfile with
+  Railway's builder config format. Railway volumes are created in its
+  dashboard, not in this file; see the `_notes` block inside it and
+  `docs/HOSTED-DEPLOY.md`.
+- The same Dockerfile also works on Render with its own config format, or on
+  a plain VPS with `docker run` directly; fly.toml and railway.json are two
+  concrete examples, not the only options.
 - `postgres/`: the Postgres translation of the schema, for Option C later.
   Not used by Option A at all.
+- The full, step-by-step version of "how do I actually get this live" for a
+  non-technical owner is `docs/HOSTED-DEPLOY.md`, not this file. This file
+  stays focused on explaining the Dockerfile and fly.toml line by line.
 
 ## Dockerfile, explained line by line where it matters
 
@@ -43,10 +52,14 @@ Read docs/DEPLOY.md first for why this is the recommended path right now.
   on a plain VPS running Docker directly this is a `-v` flag
   (`-v harness_data:/app/data`) or a bind mount to a real directory on the
   host disk.
-- `ENV HARNESS_DB_PATH=/app/data/harness.db`: points the app's database
-  path (see docs/ENV.md) at the mounted volume, so the file survives
-  container restarts and redeploys instead of living in the throwaway
-  container filesystem.
+- `ENV HARNESS_DB_PATH=/app/data/harness.db` and
+  `ENV HARNESS_FILES_DIR=/app/data/files`: point the app's database path
+  (see docs/ENV.md) and the directory a later package will use for uploaded
+  deal documents at the same mounted volume, so both survive container
+  restarts and redeploys instead of living in the throwaway container
+  filesystem. `HARNESS_FILES_DIR` is not read by any code yet; the
+  directory and env var exist ahead of time so that package does not need a
+  deploy-recipe change when it ships.
 - `HEALTHCHECK ... CMD node -e "fetch(...)"`: hits `/login`, which is
   public per proxy.ts, so the check passes whether or not anyone is
   signed in. It only tells the host "the app is answering HTTP requests",
@@ -57,9 +70,9 @@ Read docs/DEPLOY.md first for why this is the recommended path right now.
 
 ## fly.toml, explained where it matters
 
-- `app = "banker-harness"`: Fly app names are global across all Fly users;
-  this will need to be renamed to something unique before it can actually
-  be created (for example `your-firm-deal-desk`).
+- `app = "deal-desk-CHANGEME"`: Fly app names are global across all Fly
+  users; this placeholder must be renamed to something unique before it can
+  actually be created (for example `yourfirm-deal-desk`).
 - `[build] dockerfile = "deploy/Dockerfile"`: tells `fly deploy` to build
   from this Dockerfile instead of looking for one at the repo root.
 - `[env]`: only non-secret values go here, because fly.toml is a plain
@@ -85,23 +98,25 @@ Read docs/DEPLOY.md first for why this is the recommended path right now.
 
 ## What is deliberately not done here
 
-- No `docker build` or `docker run` was executed. These files are written
-  and reviewed, not tested, per the lane restriction for this pass.
+- No `docker build` or `docker run` was executed; Docker is not installed on
+  the machine that wrote this recipe. `scripts/test-hosted-local.mjs`
+  exercises the same startup contract (production build, login gate, seed
+  script, backup/restore) without Docker, and its output is reported
+  alongside this recipe. That is not the same as a real `docker build`, and
+  a real one should still be run before this ever goes live.
 - No secrets are set anywhere in this folder. Every secret referenced
   above must be created and set by whoever actually deploys this, using
-  `fly secrets set` or the equivalent for the chosen host. See docs/ENV.md
-  for the full list and what each one does.
+  `fly secrets set`, Railway service variables, or the equivalent for the
+  chosen host. See docs/ENV.md for the full list and what each one does.
 - No account was created on Fly, Railway, Render, or any VPS provider.
   That step, and the decision of which one to use, is Jack's to make; this
   folder just makes that step a copy-and-deploy action instead of a
   from-scratch setup.
-- Off-box backups are not automated here. A simple, safe pattern once
-  this is live: a small nightly script (or a Fly Machines scheduled run)
-  that copies `/app/data/harness.db` to encrypted off-site storage (for
-  example an S3-compatible bucket with server-side encryption). That
-  script is a follow-up task, not part of this recipe, and should not
-  touch the live database file while the app is writing to it (SQLite's
-  WAL mode, already enabled in app/lib/db.ts, makes a plain file copy of
-  the main db file safe to take while the app keeps running, but a proper
-  `sqlite3 .backup` style snapshot is the more careful option if this
-  becomes a recurring, unattended job).
+- Off-box backups are not automated here (no cloud upload code exists in
+  this repo). `scripts/backup-db.mjs` produces the on-box snapshot using
+  node:sqlite's own backup API when available, or `VACUUM INTO` otherwise,
+  either of which is safe to run while the app keeps writing to the
+  database under WAL. `docs/HOSTED-DEPLOY.md` documents the manual
+  `fly sftp get` / Railway volume-copy step to get a copy off the box,
+  without implementing any cloud upload. That copy-off-box step is a
+  follow-up task, not part of this recipe.

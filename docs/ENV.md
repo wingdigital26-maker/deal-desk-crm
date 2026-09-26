@@ -115,3 +115,49 @@ the repo; they must be set on whatever machine or host runs the app.
 - If missing or not `production`: the login cookie is issued without the
   Secure attribute, which is only acceptable for local development over
   plain http. Never run a real deployment with NODE_ENV unset.
+
+## Outlook capture (GRAPH_*)
+
+Read in app/lib/graph/config.ts. Full setup, firm sign-off and Azure steps
+are in docs/OUTLOOK-CAPTURE.md. Capture is off unless all five are set and
+GRAPH_CAPTURE_ENABLED is exactly `1`; when off, the sync route refuses with
+409 and makes no network call.
+
+### GRAPH_CAPTURE_ENABLED
+
+- What it does: the on switch for Outlook capture.
+- Secret: no.
+- Safe example: `1` only after the firm has signed off. Leave unset otherwise.
+- If missing or any value other than `1`: capture is off.
+
+### GRAPH_TENANT_ID
+
+- What it does: the Microsoft Entra directory (tenant) ID the app signs in to.
+- Secret: no, but there is no reason to share it.
+- Safe example: a GUID copied from the app registration's Overview page.
+- If missing: capture refuses to run and the status route lists it as missing.
+
+### GRAPH_CLIENT_ID
+
+- What it does: the application (client) ID of the Azure app registration.
+- Secret: no.
+- Safe example: a GUID copied from the app registration's Overview page.
+- If missing: capture refuses to run and the status route lists it as missing.
+
+### GRAPH_CLIENT_SECRET
+
+- What it does: the client secret the app uses to get a read-only Graph token.
+- Secret: yes. Treat it like a password. Never commit it, log it, or paste it
+  into chat or a ticket. It is only ever sent to login.microsoftonline.com.
+- Safe example: the value shown once when the secret is created in Azure.
+- If missing: capture refuses to run. When it expires in Azure, syncs fail
+  with a plain error until a new one is set.
+
+### GRAPH_MAILBOX
+
+- What it does: the one mailbox (user principal name) capture reads. Mail
+  sent from this address is logged as email-out, everything else as email-in.
+- Secret: no.
+- Safe example: `banker@yourfirm.com`. It must be the same mailbox the
+  Exchange ApplicationAccessPolicy allows.
+- If missing: capture refuses to run and the status route lists it as missing.

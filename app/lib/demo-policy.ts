@@ -7,6 +7,7 @@ export const DEMO_REFUSAL = "Not available in the demo. This is a sample workspa
 /** API paths that would reach an outside service, spawn a process, or touch credentials. */
 const BLOCKED: RegExp[] = [
   /^\/api\/apollo(\/|$)/,
+  /^\/api\/capture(\/|$)/,
   /^\/api\/outbound\/instantly(\/|$)/,
   /^\/api\/outbound\/run(\/|$)/,
   /^\/api\/replies\/(sync|instantly|ingest)(\/|$)/,

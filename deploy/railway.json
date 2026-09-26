@@ -1,0 +1,20 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "deploy/Dockerfile"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "healthcheckPath": "/login",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "_notes": {
+    "volume": "This app keeps its only copy of state (data/harness.db and, later, uploaded documents under data/files) on disk inside the container, so it needs a Railway Volume mounted at /app/data. Create the volume in the Railway dashboard for this service and set its mount path to /app/data before the first deploy, or the database is wiped on every redeploy.",
+    "singleInstance": "numReplicas must stay at 1. node:sqlite in this app supports exactly one writer process; scaling this service to more than one replica while it uses SQLite will corrupt or silently drop writes.",
+    "secrets": "Set SESSION_SECRET (32+ random hex characters, e.g. `openssl rand -hex 32`) as a Railway service variable, never in this file. Leave OUTBOUND_SEND_ENABLED and GRAPH_CAPTURE_ENABLED at 0 and HARNESS_NO_LOGIN unset, same as deploy/fly.toml.",
+    "healthcheck": "/login is public (see proxy.ts) so the healthcheck passes whether or not anyone is signed in; it only confirms the app answers HTTP requests."
+  }
+}

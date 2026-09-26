@@ -34,15 +34,20 @@ COPY --from=build /app/scrapers ./scrapers
 COPY --from=build /app/firm.config.ts ./firm.config.ts
 
 # Non-root user. The image ships a "node" user already; just own the app dir.
-RUN mkdir -p /app/data \
+# /app/data/files is created ahead of time for a later package that stores
+# uploaded deal documents there, so that package can rely on it existing on
+# any host that follows this Dockerfile, whether or not it has shipped yet.
+RUN mkdir -p /app/data/files \
   && chown -R node:node /app
 USER node
 
-# This is where HARNESS_DB_PATH should point. Mount a real volume here
-# (see deploy/fly.toml) or the database is lost on every redeploy.
+# This is where HARNESS_DB_PATH and HARNESS_FILES_DIR should point. Mount a
+# real volume here (see deploy/fly.toml) or both the database and any
+# uploaded documents are lost on every redeploy.
 VOLUME ["/app/data"]
 
 ENV HARNESS_DB_PATH=/app/data/harness.db
+ENV HARNESS_FILES_DIR=/app/data/files
 ENV PORT=3000
 EXPOSE 3000
 

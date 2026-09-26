@@ -263,6 +263,16 @@ CREATE TABLE IF NOT EXISTS profile_facts (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS profile_facts_key ON profile_facts(entity, entity_id, field, value_key);
 CREATE INDEX IF NOT EXISTS profile_facts_entity ON profile_facts(entity, entity_id);
+-- Auto-capture dedupe (Outlook / Graph, off by default): one row per (item, contact) already written to the timeline.
+CREATE TABLE IF NOT EXISTS captured_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  contact_id INTEGER,
+  activity_id INTEGER REFERENCES activities(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(provider, external_id, contact_id)
+);
 `;
 
 // Additive, idempotent column migrations for databases created by an earlier schema.

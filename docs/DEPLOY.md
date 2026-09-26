@@ -3,6 +3,11 @@
 This is written for a non-technical owner. No code required to read this.
 It compares the real hosting options for this exact app and recommends a path.
 
+For the actual step-by-step recipe once Option A below is the chosen path,
+see [docs/HOSTED-DEPLOY.md](./HOSTED-DEPLOY.md), including the compliance
+gate at its top: do not load real client or buyer data until the firm's
+compliance and IT sign off.
+
 ## The one fact that decides this
 
 The app stores all data (contacts, deals, templates, audit log, everything)

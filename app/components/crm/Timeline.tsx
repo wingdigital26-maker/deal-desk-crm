@@ -17,6 +17,7 @@ export type Activity = {
 const KIND_LABEL: Record<string, string> = {
   note: "Note",
   call: "Call",
+  meeting: "Meeting",
   "email-out": "Email sent",
   "email-in": "Email received",
   "stage-change": "Stage change",
