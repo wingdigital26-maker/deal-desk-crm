@@ -15,6 +15,8 @@ import { getCompanyProfile } from "../../lib/profile";
 import { OwnerCard, BusinessCard, WhyNowCard, FitLine, HintsCard } from "../../components/profile/ProfileCards";
 import RefreshProfileButton from "../../components/profile/RefreshProfileButton";
 import { isDemo } from "../../lib/demo-policy";
+import BuyerPanel, { type BuyerProfile } from "../../components/buyers/BuyerPanel";
+import { buyerHistory } from "../../lib/buyers";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,8 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
   // Signals now render through the profile's "Why now" card, which applies the
   // match discipline (a headline that does not name this company is not shown).
   const profile = getCompanyProfile(companyId)!;
+  const buyerProfile = (db().prepare("SELECT * FROM buyer_profiles WHERE company_id = ?").get(companyId) as BuyerProfile | undefined) ?? null;
+  const shownDeals = buyerHistory(companyId);
   const user = await currentUser();
   const activities = db()
     .prepare(
@@ -138,6 +142,8 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
               </ul>
             )}
           </Panel>
+
+          <BuyerPanel companyId={companyId} profile={buyerProfile} history={shownDeals} />
 
           <WhyNowCard profile={profile} />
           <HintsCard profile={profile} />

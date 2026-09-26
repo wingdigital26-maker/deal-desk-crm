@@ -1520,6 +1520,109 @@ function companyByName(name) {
 }
 
 // ---------------------------------------------------------------------------
+// 17d. P2 buyer logs: fictional PE firms, strategics and family offices shown
+// three live mandates, with milestone dates, IOIs, an LOI, declines with
+// reasons, and buyers shown more than one deal (cross-deal memory).
+// Deterministic, no PRNG draws.
+// ---------------------------------------------------------------------------
+{
+  const BUYERS = [
+    ["Red Oak Capital Partners", "redoakcapital.example", "pe", 5_000_000, 40_000_000, 3_000_000, 12_000_000, "Platform and add-on deals in industrial services across Texas and the Southwest."],
+    ["Trinity Ridge Equity", "trinityridge.example", "pe", 10_000_000, 75_000_000, 4_000_000, 20_000_000, "Founder transitions in specialty manufacturing. Keeps management and rolls equity."],
+    ["Pecan Street Capital", "pecanstreet.example", "pe", 3_000_000, 25_000_000, 2_000_000, 8_000_000, "Lower middle market buyouts, first institutional capital."],
+    ["Blue Mesa Partners", "bluemesa.example", "pe", 15_000_000, 120_000_000, 6_000_000, 30_000_000, "Distribution and logistics roll-ups."],
+    ["Caprock Growth Fund", "caprockgrowth.example", "pe", 5_000_000, 50_000_000, 3_000_000, 15_000_000, "Minority and majority growth equity for owner-led businesses."],
+    ["Anchor Point Equity", "anchorpoint.example", "pe", 8_000_000, 60_000_000, 4_000_000, 18_000_000, "Add-ons for its coatings and process platform."],
+    ["Gulfline Industrial Group", "gulfline.example", "strategic", null, null, 3_000_000, 25_000_000, "Strategic acquirer adding fabrication capacity along the Gulf Coast."],
+    ["Hollister Supply Co", "hollistersupply.example", "strategic", null, null, 2_000_000, 12_000_000, "Regional distributor buying adjacent product lines."],
+    ["Keystone Fabrication Holdings", "keystonefab.example", "strategic", null, null, 4_000_000, 30_000_000, "Consolidating contract manufacturers in the central US."],
+    ["Summit Process Industries", "summitprocess.example", "strategic", null, null, 5_000_000, 40_000_000, "Process equipment maker looking for service revenue."],
+    ["Whitlock Family Office", "whitlockfo.example", "family-office", 5_000_000, 30_000_000, 2_000_000, 10_000_000, "Long-hold family capital, no fixed exit date."],
+    ["Marrow Family Holdings", "marrowholdings.example", "family-office", 3_000_000, 20_000_000, 2_000_000, 8_000_000, "Buys and holds Texas businesses with a second-generation question."],
+  ];
+  const insCo = db.prepare("INSERT INTO companies (name, domain, segment_id, industry, city, state, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)");
+  const insProfile = db.prepare(
+    "INSERT INTO buyer_profiles (company_id, buyer_type, check_size_low, check_size_high, ebitda_fit_low, ebitda_fit_high, thesis) VALUES (?,?,?,?,?,?,?)"
+  );
+  const buyerIds = BUYERS.map(([name, domain, type, cl, ch, el, eh, thesis], i) => {
+    const created = isoDateTime(daysFromToday(-300 + i * 5));
+    const id = Number(insCo.run(name, domain, "owners", type === "strategic" ? "Industrial" : "Investment firm", "Dallas", "TX", "manual", created, created).lastInsertRowid);
+    insProfile.run(id, type, cl, ch, el, eh, thesis);
+    return id;
+  });
+
+  const ORDER = ["teaser_sent", "nda_sent", "nda_signed", "cim_sent", "ioi", "mgmt_meeting", "loi", "exclusivity", "closed"];
+  const insBuyer = db.prepare("INSERT INTO deal_buyers (deal_id, buyer_company_id, stage, owner_user_id, created_at, updated_at) VALUES (?,?,?,1,?,?)");
+  const insHist = db.prepare("INSERT INTO deal_buyer_stage_history (deal_buyer_id, from_stage, to_stage, note, changed_by, created_at) VALUES (?,?,?,?,1,?)");
+
+  // [buyer index, final stage, declined reason or null, ioi low, ioi high, loi value, cash at close %, rollover %]
+  function runLog(dealId, startDaysAgo, plan) {
+    for (const [bi, final, reason, ioiLo, ioiHi, loi, cash, roll] of plan) {
+      const steps = ORDER.slice(0, ORDER.indexOf(final) + 1);
+      let t = startDaysAgo - bi * 2;
+      const at = () => isoDateTime(daysFromToday(-Math.max(1, t)));
+      const id = Number(insBuyer.run(dealId, buyerIds[bi], "teaser_sent", at(), at()).lastInsertRowid);
+      const stamps = {};
+      let from = null;
+      for (const s of steps) {
+        stamps[s] = at();
+        insHist.run(id, from, s, null, stamps[s]);
+        from = s;
+        t -= 9;
+      }
+      let stage = steps.at(-1);
+      let declinedFrom = null;
+      if (reason) {
+        declinedFrom = stage;
+        stamps.declined = at();
+        insHist.run(id, stage, "declined", reason, stamps.declined);
+        stage = "declined";
+      }
+      const cols = Object.keys(stamps).map((s) => `${s}_at = ?`);
+      db.prepare(
+        `UPDATE deal_buyers SET stage = ?, declined_from_stage = ?, decline_reason = ?, ioi_low = ?, ioi_high = ?, loi_value = ?, cash_at_close_pct = ?, rollover_pct = ?,
+         ${cols.join(", ")}, updated_at = ? WHERE id = ?`
+      ).run(stage, declinedFrom, reason, ioiLo, ioiHi, loi, cash, roll, ...Object.values(stamps), Object.values(stamps).at(-1), id);
+    }
+  }
+
+  const inMarket = deals.filter((d) => d.stage === "In Market");
+  const atLoi = deals.filter((d) => d.stage === "LOI");
+  const closed = deals.filter((d) => d.stage === "Closed");
+  if (inMarket[0]) {
+    runLog(inMarket[0].id, 80, [
+      [0, "ioi", null, 38_000_000, 44_000_000, null, 85, 15],
+      [1, "mgmt_meeting", null, 41_000_000, 47_000_000, null, 80, 20],
+      [2, "cim_sent", "Valuation gap", null, null, null, null, null],
+      [3, "ioi", null, 36_000_000, 40_000_000, null, 100, null],
+      [6, "cim_sent", null, null, null, null, null, null],
+      [7, "nda_sent", "Outside thesis", null, null, null, null, null],
+      [8, "nda_signed", null, null, null, null, null, null],
+      [10, "teaser_sent", null, null, null, null, null, null],
+      [11, "teaser_sent", "Timing", null, null, null, null, null],
+    ]);
+  }
+  if (atLoi[0]) {
+    runLog(atLoi[0].id, 150, [
+      [1, "loi", null, 52_000_000, 58_000_000, 57_500_000, 80, 20],
+      [0, "mgmt_meeting", "Valuation gap", 48_000_000, 52_000_000, null, 90, 10],
+      [4, "ioi", "Financing", 45_000_000, 50_000_000, null, 70, 30],
+      [5, "cim_sent", "Outside thesis", null, null, null, null, null],
+      [9, "mgmt_meeting", null, 50_000_000, 55_000_000, null, 100, null],
+      [10, "nda_signed", "Too small", null, null, null, null, null],
+    ]);
+  }
+  if (closed[0]) {
+    runLog(closed[0].id, 260, [
+      [9, "closed", null, 30_000_000, 34_000_000, 33_000_000, 90, 10],
+      [3, "ioi", "Valuation gap", 26_000_000, 29_000_000, null, 100, null],
+      [2, "cim_sent", "Too small", null, null, null, null, null],
+      [6, "mgmt_meeting", "Went quiet", 28_000_000, 31_000_000, null, 100, null],
+    ]);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 18. Summary + integrity checks
 // ---------------------------------------------------------------------------
 function count(table) {

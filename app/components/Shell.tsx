@@ -105,7 +105,7 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
   };
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] md:grid md:grid-cols-[88px_1fr]">
+    <div className="app-shell min-h-screen bg-[var(--paper)] md:grid md:grid-cols-[88px_1fr]">
       {/* Desktop icon rail */}
       <aside className="hidden border-r border-[var(--rule)] bg-[var(--surface)] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:items-center md:py-5">
         <Link href="/" aria-label={`${firm.productName} home`} className="mb-5 grid h-11 w-11 place-items-center rounded-[12px] bg-[var(--navy)]">
@@ -175,7 +175,7 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
         </header>
 
         {demo && (
-          <div className="w-full border-b border-[var(--rule)] bg-[var(--surface)] px-4 py-2 text-[13px] text-[var(--ink-soft)] md:px-8">
+          <div className="no-print w-full border-b border-[var(--rule)] bg-[var(--surface)] px-4 py-2 text-[13px] text-[var(--ink-soft)] md:px-8">
             Demo workspace. Sample data, sending disabled.
           </div>
         )}

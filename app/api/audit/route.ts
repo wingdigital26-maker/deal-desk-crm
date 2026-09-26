@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 // exists for audit_log anywhere in this app: it is append-only by construction.
 import { db } from "../../lib/db";
 import { requireUser } from "../../lib/session";
+import { csvCell as csvEscape } from "../../lib/export";
 import type { SQLInputValue } from "node:sqlite";
 
 type AuditRow = {
@@ -46,15 +47,6 @@ function buildFilter(url: URL) {
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   return { where, params };
-}
-
-function csvEscape(value: unknown): string {
-  let s = value === null || value === undefined ? "" : String(value);
-  // Neutralize spreadsheet formula injection: a cell that opens with =, +, -, @
-  // or a tab is prefixed with an apostrophe so it never executes as a formula.
-  if (/^[=+\-@\t]/.test(s)) s = `'${s}`;
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
 }
 
 export async function GET(req: Request) {

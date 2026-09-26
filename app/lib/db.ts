@@ -75,6 +75,61 @@ CREATE TABLE IF NOT EXISTS deal_team (
   added_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (deal_id, user_id)
 );
+-- P2 BUYERS. A buyer is a company with a 1:1 buyer profile (SPEC_BUYER_LOG s.0).
+CREATE TABLE IF NOT EXISTS buyer_profiles (
+  company_id INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  buyer_type TEXT NOT NULL DEFAULT 'strategic' CHECK (buyer_type IN ('pe','strategic','family-office','other')),
+  check_size_low INTEGER, check_size_high INTEGER,       -- dollars
+  ebitda_fit_low INTEGER, ebitda_fit_high INTEGER,       -- dollars
+  thesis TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Per-mandate buyer log: one row per (deal, buyer). Stage set settled 2026-09-25.
+-- declined keeps where the buyer dropped out (declined_from_stage) and why.
+-- Buyers are soft-removed (removed_at), never deleted, so history survives.
+CREATE TABLE IF NOT EXISTS deal_buyers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  buyer_company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
+  lead_contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+  stage TEXT NOT NULL DEFAULT 'teaser_sent' CHECK (stage IN
+    ('teaser_sent','nda_sent','nda_signed','cim_sent','ioi','mgmt_meeting','loi','exclusivity','closed','declined')),
+  declined_from_stage TEXT,
+  decline_reason TEXT,
+  -- First time each milestone was reached. Set once, never overwritten.
+  teaser_sent_at TEXT, nda_sent_at TEXT, nda_signed_at TEXT, cim_sent_at TEXT, ioi_at TEXT,
+  mgmt_meeting_at TEXT, loi_at TEXT, exclusivity_at TEXT, closed_at TEXT, declined_at TEXT,
+  -- Terms (dollars / percent / days). Every edit logs the old value in deal_buyer_revisions.
+  ioi_low INTEGER, ioi_high INTEGER, loi_value INTEGER,
+  cash_at_close_pct REAL, rollover_pct REAL, earnout TEXT, financing TEXT,
+  diligence_days INTEGER, exclusivity_days INTEGER, structure_notes TEXT, notes TEXT,
+  owner_user_id INTEGER REFERENCES users(id),
+  removed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS deal_buyers_unique ON deal_buyers(deal_id, buyer_company_id);
+CREATE INDEX IF NOT EXISTS deal_buyers_by_buyer ON deal_buyers(buyer_company_id);
+-- Append-only (17a-4(f)(2)(i) audit-trail alternative). No UPDATE or DELETE is
+-- ever issued, and RESTRICT stops a cascade from erasing it.
+CREATE TABLE IF NOT EXISTS deal_buyer_stage_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  deal_buyer_id INTEGER NOT NULL REFERENCES deal_buyers(id) ON DELETE RESTRICT,
+  from_stage TEXT, to_stage TEXT NOT NULL, note TEXT,
+  changed_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS deal_buyer_stage_history_by_buyer ON deal_buyer_stage_history(deal_buyer_id);
+-- Append-only: the old and new value of every term edit, so any prior state can be recreated.
+CREATE TABLE IF NOT EXISTS deal_buyer_revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  deal_buyer_id INTEGER NOT NULL REFERENCES deal_buyers(id) ON DELETE RESTRICT,
+  field TEXT NOT NULL, old_value TEXT, new_value TEXT,
+  changed_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS deal_buyer_revisions_by_buyer ON deal_buyer_revisions(deal_buyer_id);
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL, due TEXT, done INTEGER NOT NULL DEFAULT 0,

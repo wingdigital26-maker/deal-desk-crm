@@ -180,3 +180,13 @@ input[type="checkbox"] { accent-color: var(--navy); }
 .os-signin-button:disabled { opacity: 0.6; cursor: not-allowed; }
 .os-signin-button:focus-visible { outline: 2px solid var(--os-text); outline-offset: 2px; }
 .os-signin-foot { margin-top: 2px; text-align: center; font-size: 11px; color: var(--os-muted); }
+
+/* Print: the seller report (and any page) prints without the app frame. */
+@media print {
+  .app-shell { display: block !important; background: white !important; }
+  .app-shell > aside, .app-shell header, .app-shell nav, .no-print { display: none !important; }
+  .app-shell main { max-width: none !important; padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid var(--rule-strong); }
+  .print-break-avoid { break-inside: avoid; }
+  @page { margin: 14mm; }
+}

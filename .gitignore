@@ -20,3 +20,4 @@ demo/*.db
 demo/*.db-*
 .demo-check/
 .vercel
+data/check/
