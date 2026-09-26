@@ -1,24 +1,22 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../crm/PageHeader";
-import ExportLinks from "../crm/ExportLinks";
 import EmptyState from "../crm/EmptyState";
-import DataTable, { type Column } from "../crm/DataTable";
 import { Button } from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import DealCard, { PeopleLine } from "./DealCard";
+import DealCard from "./DealCard";
 import CreateDealForm from "./CreateDealForm";
-import { formatDate, isOverdue } from "./dateUtils";
 import PipelineForecast from "./PipelineForecast";
-import { formatMoney, weightedFee, type StageDefaults } from "../../lib/dealMath";
+import PipelineList from "./PipelineList";
+import { type StageDefaults } from "../../lib/dealMath";
 import type { Deal } from "./types";
 
 type ViewMode = "board" | "list";
 
-export default function PipelineBoard({ stages, isOwner = false, cfg }: { stages: readonly string[]; isOwner?: boolean; cfg: StageDefaults }) {
+export default function PipelineBoard({ stages, cfg }: { stages: readonly string[]; isOwner?: boolean; cfg: StageDefaults }) {
   const [deals, setDeals] = useState<Deal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>("board");
+  const [view, setView] = useState<ViewMode>("list");
   const [mobileStage, setMobileStage] = useState<string>(stages[0]);
   const [creatingInStage, setCreatingInStage] = useState<string | null>(null);
   const [creatingGlobal, setCreatingGlobal] = useState(false);
@@ -91,6 +89,17 @@ export default function PipelineBoard({ stages, isOwner = false, cfg }: { stages
       setError("Could not move that deal. It has been put back.");
       setTimeout(() => setError(null), 4000);
     }
+  }
+
+  async function patchDeal(dealId: number, patch: Partial<Deal>): Promise<boolean> {
+    const res = await fetch(`/api/deals/${dealId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).catch(() => null);
+    if (!res?.ok) return false;
+    setDeals((cur) => (cur ? cur.map((d) => (d.id === dealId ? { ...d, ...patch } : d)) : cur));
+    return true;
   }
 
   async function confirmDeleteTarget() {
@@ -188,21 +197,20 @@ export default function PipelineBoard({ stages, isOwner = false, cfg }: { stages
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="card flex p-0.5 text-sm">
           <button
-            onClick={() => setView("board")}
-            aria-pressed={view === "board"}
-            className={`min-h-[38px] rounded-[var(--radius-sm)] px-3 ${view === "board" ? "bg-[var(--paper-deep)] font-medium text-[var(--ink)]" : "text-[var(--ink-soft)]"}`}
-          >
-            Board
-          </button>
-          <button
             onClick={() => setView("list")}
             aria-pressed={view === "list"}
             className={`min-h-[38px] rounded-[var(--radius-sm)] px-3 ${view === "list" ? "bg-[var(--paper-deep)] font-medium text-[var(--ink)]" : "text-[var(--ink-soft)]"}`}
           >
             List
           </button>
+          <button
+            onClick={() => setView("board")}
+            aria-pressed={view === "board"}
+            className={`min-h-[38px] rounded-[var(--radius-sm)] px-3 ${view === "board" ? "bg-[var(--paper-deep)] font-medium text-[var(--ink)]" : "text-[var(--ink-soft)]"}`}
+          >
+            Board
+          </button>
         </div>
-        {view === "list" && <ExportLinks entity="deals" />}
         {view === "board" && (
           <label className="text-sm md:hidden">
             <span className="sr-only">Stage</span>
@@ -281,16 +289,16 @@ export default function PipelineBoard({ stages, isOwner = false, cfg }: { stages
           </div>
         </>
       ) : (
-        <DealTable
+        <PipelineList
           deals={deals}
-          cfg={cfg}
           stages={stages}
           onMove={moveDeal}
-          isOwner={isOwner}
-          onRequestDelete={(deal) => {
-            setDeleteError(null);
-            setDeleteTarget(deal);
-          }}
+          onPatch={patchDeal}
+          onNoted={(id, body) =>
+            setDeals((cur) =>
+              cur ? cur.map((d) => (d.id === id ? { ...d, last_note: body, last_interaction_at: new Date().toISOString().slice(0, 19).replace("T", " ") } : d)) : cur
+            )
+          }
         />
       )}
 
@@ -390,78 +398,4 @@ function StageColumn({
       </div>
     </div>
   );
-}
-
-function DealTable({
-  deals,
-  cfg,
-  stages,
-  onMove,
-  isOwner,
-  onRequestDelete,
-}: {
-  deals: Deal[];
-  cfg: StageDefaults;
-  stages: readonly string[];
-  onMove: (dealId: number, stage: string) => void;
-  isOwner: boolean;
-  onRequestDelete: (deal: Deal) => void;
-}) {
-  const columns: Column<Deal>[] = [
-    { key: "title", label: "Deal", render: (d) => d.title },
-    { key: "company", label: "Company", render: (d) => <span className="text-[var(--ink-soft)]">{d.company_name}</span> },
-    { key: "people", label: "People", render: (d) => <PeopleLine deal={d} /> },
-    {
-      key: "stage",
-      label: "Stage",
-      render: (d) => (
-        <label onClick={(e) => e.stopPropagation()}>
-          <span className="sr-only">Move {d.title}</span>
-          <select
-            value={d.stage}
-            onChange={(e) => onMove(d.id, e.target.value)}
-            className="min-h-[36px] rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--paper)] px-2 text-xs"
-          >
-            {stages.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-      ),
-    },
-    { key: "ev", label: "EV", render: (d) => <span className="numeric text-[var(--ink-soft)]">{formatMoney(d.enterprise_value) || "-"}</span> },
-    {
-      key: "weighted",
-      label: "Weighted fee",
-      render: (d) => <span className="numeric text-[var(--ink-soft)]">{formatMoney(weightedFee(d, cfg)) || "-"}</span>,
-    },
-    { key: "next_step", label: "Next step", render: (d) => <span className="text-[var(--ink-soft)]">{d.next_step ?? "-"}</span> },
-    {
-      key: "due",
-      label: "Due",
-      render: (d) => (
-        <span className={isOverdue(d.next_step_due) ? "font-medium text-[var(--bad)]" : "text-[var(--ink-soft)]"}>
-          {d.next_step_due ? (isOverdue(d.next_step_due) ? "overdue " : "") + formatDate(d.next_step_due) : "-"}
-        </span>
-      ),
-    },
-  ];
-
-  if (isOwner) {
-    columns.push({
-      key: "actions",
-      label: "",
-      render: (d) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Button variant="danger" size="sm" onClick={() => onRequestDelete(d)}>
-            Delete
-          </Button>
-        </div>
-      ),
-    });
-  }
-
-  return <DataTable columns={columns} rows={deals} rowHref={(d) => `/pipeline/${d.id}`} />;
 }

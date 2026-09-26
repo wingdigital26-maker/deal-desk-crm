@@ -33,7 +33,11 @@ export async function GET(req: Request) {
   const rows = q
     ? (db()
         .prepare(
-          `SELECT d.*, c.name AS company_name, c.domain AS company_domain,
+          `SELECT d.*, c.name AS company_name, c.domain AS company_domain, c.city AS company_city, c.state AS company_state,
+                  TRIM(COALESCE(pc.first_name,'') || ' ' || COALESCE(pc.last_name,'')) AS primary_contact_name, pc.title AS primary_contact_title,
+                  (SELECT a.body FROM activities a WHERE a.deal_id = d.id AND a.kind IN ('note','call','meeting','email-in','email-out') AND a.body IS NOT NULL
+                   ORDER BY a.created_at DESC, a.id DESC LIMIT 1) AS last_note,
+                  (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id AND a.kind IN ('note','call','meeting','email-in','email-out')) AS last_interaction_at,
                   (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at,
                   (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id) AS people_count,
                   (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id AND p.relationship IN ('knows-well','knows')) AS known_count,
@@ -42,6 +46,7 @@ export async function GET(req: Request) {
                       ORDER BY CASE relationship WHEN 'knows-well' THEN 0 ELSE 1 END, last_name LIMIT 3) p) AS known_names
            FROM deals d
            JOIN companies c ON c.id = d.company_id
+           LEFT JOIN contacts pc ON pc.id = d.primary_contact_id
            WHERE d.title LIKE ? OR c.name LIKE ?
            ORDER BY d.updated_at DESC
            LIMIT 8`
@@ -49,7 +54,11 @@ export async function GET(req: Request) {
         .all(`%${q}%`, `%${q}%`) as DealRow[])
     : (db()
         .prepare(
-          `SELECT d.*, c.name AS company_name, c.domain AS company_domain,
+          `SELECT d.*, c.name AS company_name, c.domain AS company_domain, c.city AS company_city, c.state AS company_state,
+                  TRIM(COALESCE(pc.first_name,'') || ' ' || COALESCE(pc.last_name,'')) AS primary_contact_name, pc.title AS primary_contact_title,
+                  (SELECT a.body FROM activities a WHERE a.deal_id = d.id AND a.kind IN ('note','call','meeting','email-in','email-out') AND a.body IS NOT NULL
+                   ORDER BY a.created_at DESC, a.id DESC LIMIT 1) AS last_note,
+                  (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id AND a.kind IN ('note','call','meeting','email-in','email-out')) AS last_interaction_at,
                   (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at,
                   (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id) AS people_count,
                   (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id AND p.relationship IN ('knows-well','knows')) AS known_count,
@@ -58,6 +67,7 @@ export async function GET(req: Request) {
                       ORDER BY CASE relationship WHEN 'knows-well' THEN 0 ELSE 1 END, last_name LIMIT 3) p) AS known_names
            FROM deals d
            JOIN companies c ON c.id = d.company_id
+           LEFT JOIN contacts pc ON pc.id = d.primary_contact_id
            ORDER BY d.updated_at DESC`
         )
         .all() as DealRow[]);

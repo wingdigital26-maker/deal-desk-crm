@@ -114,6 +114,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       values.push(v.boundedString("fee_terms", body.fee_terms, 1000));
       detail.fee_terms_changed = true;
     }
+    if ("outcome" in body) {
+      const val = v.boundedString("outcome", body.outcome, 500);
+      fields.push("outcome = ?");
+      values.push(val);
+      detail.outcome = val;
+    }
     if ("expected_close" in body) {
       const val = v.isoDate("expected_close", body.expected_close);
       fields.push("expected_close = ?");

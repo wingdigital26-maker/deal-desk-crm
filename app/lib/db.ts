@@ -385,6 +385,8 @@ const COLUMN_MIGRATIONS: [table: string, column: string, ddl: string][] = [
   ["contacts", "referral_kind", "TEXT"],
   // How well the banker knows this person (knows-well | knows | met | not-yet; null = not set).
   ["contacts", "relationship", "TEXT"],
+  // Outcome of the deal, like a 4Degrees list: "Pass - too concentrated", "Signed".
+  ["deals", "outcome", "TEXT"],
   // Plain INTEGER (ALTER TABLE cannot add a real FK everywhere): the contact
   // DELETE route clears it, and every read LEFT JOINs contacts.
   ["deals", "referral_contact_id", "INTEGER"],

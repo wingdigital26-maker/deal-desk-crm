@@ -24,6 +24,13 @@ export type Deal = {
   people_count?: number;
   known_count?: number;
   known_names?: string | null;
+  outcome?: string | null;
+  company_city?: string | null;
+  company_state?: string | null;
+  primary_contact_name?: string | null;
+  primary_contact_title?: string | null;
+  last_note?: string | null;
+  last_interaction_at?: string | null;
 };
 
 export type TeamMember = { user_id: number; name: string; role: string };

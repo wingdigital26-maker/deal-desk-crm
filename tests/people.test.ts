@@ -50,3 +50,27 @@ describe("people at a deal's company", () => {
     expect(body.items[0]).toMatchObject({ people_count: 2, known_count: 1, known_names: "Ann Lee" });
   });
 });
+
+describe("pipeline list columns", () => {
+  it("outcome saves via PATCH; the list carries contact, latest note, last interaction and location", async () => {
+    const one = await import("../app/api/deals/[id]/route");
+    const list = await import("../app/api/deals/route");
+    await app.signIn();
+    const co = app.company("Acme Co", { city: "Tulsa", state: "OK" });
+    const deal = app.deal(co);
+    const pc = app.contact({ company_id: co, first_name: "Ann", last_name: "Lee", title: "CEO" });
+    await one.PATCH(jsonReq(`/api/deals/${deal}`, "PATCH", { primary_contact_id: pc, outcome: "Pass - too concentrated" }), params(deal));
+    app.db.prepare("INSERT INTO activities (kind, body, deal_id) VALUES ('stage-change', 'Moved', ?)").run(deal);
+    app.db.prepare("INSERT INTO activities (kind, body, deal_id, created_at) VALUES ('note', 'Call 9/22 - basic questions', ?, '2026-09-22 15:00:00')").run(deal);
+    const row = (await (await list.GET(jsonReq("/api/deals", "GET"))).json()).items[0];
+    expect(row).toMatchObject({
+      outcome: "Pass - too concentrated",
+      primary_contact_name: "Ann Lee",
+      primary_contact_title: "CEO",
+      last_note: "Call 9/22 - basic questions",
+      last_interaction_at: "2026-09-22 15:00:00",
+      company_city: "Tulsa",
+      company_state: "OK",
+    });
+  });
+});
