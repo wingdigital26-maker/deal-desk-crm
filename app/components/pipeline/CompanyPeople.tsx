@@ -1,8 +1,7 @@
 "use client";
 // The deal's company and everyone who works there, sorted by how well the
-// banker knows them (Jack, 2026-09-26: "one company and all the contacts that
-// work inside that company that my dad would know"). Set the relationship in
-// one tap, add a person without leaving the deal.
+// banker knows them: the pipe is one company and the people there the banker
+// knows. Set the relationship in one tap, add a person without leaving the deal.
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
