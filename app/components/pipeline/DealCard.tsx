@@ -81,13 +81,26 @@ export default function DealCard({
   );
 }
 
-/** Who the banker knows at this company: the heart of the pipe. */
-export function PeopleLine({ deal }: { deal: Deal }) {
+/** Plain-text version of the people line, for title attributes. */
+export function peopleText(deal: Deal): string {
+  const total = deal.people_count ?? 0;
+  const known = deal.known_count ?? 0;
+  const banker = bankerFirstName();
+  if (total === 0) return "No people added yet";
+  if (known === 0) return `${total} ${total === 1 ? "person" : "people"}, none ${banker} knows yet`;
+  return `${banker} knows ${deal.known_names ?? ""}${known > 3 ? ` +${known - 3}` : ""}${total > known ? ` · ${total} people` : ""}`;
+}
+
+/** Who the banker knows at this company: the heart of the pipe. `oneLine` truncates it with the full text on hover. */
+export function PeopleLine({ deal, oneLine = false }: { deal: Deal; oneLine?: boolean }) {
   const total = deal.people_count ?? 0;
   const known = deal.known_count ?? 0;
   const banker = bankerFirstName();
   return (
-    <div className="mt-1.5 text-[12px] text-[var(--ink-soft)]">
+    <div
+      className={`text-[12px] text-[var(--ink-soft)] ${oneLine ? "mt-0.5 truncate" : "mt-1.5"}`}
+      title={oneLine ? peopleText(deal) : undefined}
+    >
       {total === 0 ? (
         <span className="italic text-[var(--ink-faint)]">No people added yet</span>
       ) : known === 0 ? (

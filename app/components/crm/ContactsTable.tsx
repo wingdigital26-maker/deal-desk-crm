@@ -10,6 +10,7 @@ import StatusLabel from "../ui/StatusLabel";
 import QueueTemplatePanel from "./QueueTemplatePanel";
 import FindEmailAction from "./FindEmailAction";
 import { displayName, emailCheck, relativeDays } from "./format";
+import { KNOWN, RELATIONSHIP_LABELS, isRelationship } from "../../lib/relationship";
 
 export type ContactRow = {
   id: number;
@@ -24,6 +25,7 @@ export type ContactRow = {
   company_city?: string | null;
   company_segment_id?: string | null;
   last_touch?: string | null;
+  relationship?: string | null;
 };
 
 export default function ContactsTable({
@@ -66,6 +68,19 @@ export default function ContactsTable({
 
   const columns: Column<ContactRow>[] = [
     { key: "name", label: "Name", render: (r) => <span className="font-medium">{displayName(r)}</span> },
+    {
+      // How well the banker knows them: the thing that decides who to call.
+      key: "relationship",
+      label: "Relationship",
+      render: (r) =>
+        isRelationship(r.relationship) ? (
+          <span className={KNOWN.includes(r.relationship) ? "font-semibold text-[var(--accent-deep)]" : "text-[var(--ink-soft)]"}>
+            {RELATIONSHIP_LABELS[r.relationship]}
+          </span>
+        ) : (
+          <span className="text-[var(--ink-faint)]">Not set</span>
+        ),
+    },
     {
       key: "title",
       label: "Title",

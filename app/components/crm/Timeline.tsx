@@ -48,9 +48,12 @@ export default function Timeline({
   activities,
   postUrl,
   extra,
+  limit,
 }: {
   activities: Activity[];
   postUrl: string;
+  /** Show only the newest N with a "Show all" button; everything when unset. */
+  limit?: number;
   /** Extra fields merged into the POST body, e.g. { company_id: 12 }. */
   extra?: Record<string, number>;
 }) {
@@ -58,6 +61,9 @@ export default function Timeline({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const clipped = limit != null && !showAll && activities.length > limit;
+  const shown = clipped ? activities.slice(0, limit) : activities;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,7 +113,7 @@ export default function Timeline({
         <p className="text-sm text-[var(--ink-faint)]">No activity yet. Add the first note above.</p>
       ) : (
         <ol className="space-y-4">
-          {activities.map((a) => (
+          {shown.map((a) => (
             <li key={a.id} className="flex items-start gap-3">
               <span
                 className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--tint-1)] text-[var(--ink-soft)]"
@@ -126,6 +132,15 @@ export default function Timeline({
             </li>
           ))}
         </ol>
+      )}
+      {limit != null && activities.length > limit && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          className="mt-2 inline-flex min-h-[44px] items-center text-[13px] font-semibold text-[var(--accent-deep)] hover:underline"
+        >
+          {showAll ? `Show the latest ${limit}` : `Show all ${activities.length}`}
+        </button>
       )}
     </div>
   );

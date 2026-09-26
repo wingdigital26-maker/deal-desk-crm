@@ -41,10 +41,15 @@ const shortDate = (s: string | null) =>
   s ? new Date(s.replace(" ", "T") + (s.includes("T") ? "" : "Z")).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 
 // P4: deal_buyer_id -> id of the latest NDA version on file (from the page, no extra fetch).
-function NdaOnFile({ docId }: { docId?: number }) {
+// `inline` keeps the 44px tap target but lets it overlap the row's padding
+// so it sits on the buyer-type line without making the row taller.
+function NdaOnFile({ docId, inline = false }: { docId?: number; inline?: boolean }) {
   if (!docId) return null;
   return (
-    <a href={`/api/documents/${docId}/download`} className="inline-flex min-h-[44px] items-center text-[12px] font-semibold text-[var(--accent-deep)] hover:underline">
+    <a
+      href={`/api/documents/${docId}/download`}
+      className={`inline-flex min-h-[44px] items-center text-[12px] font-semibold text-[var(--accent-deep)] hover:underline ${inline ? "-my-[14px]" : ""}`}
+    >
       NDA on file
     </a>
   );
@@ -253,8 +258,11 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
                           <Link href={`/companies/${b.buyer_company_id}`} className="font-semibold text-[var(--ink)] hover:underline">
                             {b.buyer_name}
                           </Link>
-                          {b.buyer_type && <div className="text-[12px] text-[var(--ink-soft)]">{BUYER_TYPE_LABELS[b.buyer_type as BuyerType] ?? b.buyer_type}</div>}
-                          <NdaOnFile docId={ndaDocs[b.id]} />
+                          <div className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-[var(--ink-soft)]">
+                            {b.buyer_type && <span>{BUYER_TYPE_LABELS[b.buyer_type as BuyerType] ?? b.buyer_type}</span>}
+                            {b.buyer_type && ndaDocs[b.id] && <span aria-hidden>·</span>}
+                            <NdaOnFile docId={ndaDocs[b.id]} inline />
+                          </div>
                         </td>
                         <td className="py-2 pr-3 text-[var(--ink-soft)]">
                           {b.lead_contact_id ? (
@@ -380,23 +388,27 @@ function FunnelStrip({
   active: string;
 }) {
   const tiles: { stage: BuyerStage; big: number; small: string }[] = [
-    ...FORWARD_STAGES.map((s) => ({ stage: s, big: reached[s] ?? 0, small: `${funnel[s]} here now` })),
-    { stage: "declined" as BuyerStage, big: funnel.declined, small: "dropped out" },
+    ...FORWARD_STAGES.map((s) => ({ stage: s, big: reached[s] ?? 0, small: `${funnel[s]} now` })),
+    { stage: "declined" as BuyerStage, big: funnel.declined, small: "out" },
   ];
+  // One compact row: label on top, then "reached" big and "here now" small.
   return (
-    <ol className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 xl:grid-cols-10" aria-label="Buyer funnel: how many buyers reached each stage">
+    <ol className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:grid-cols-10 lg:overflow-visible lg:px-0" aria-label="Buyer funnel: how many buyers reached each stage">
       {tiles.map((t) => (
-        <li key={t.stage} className="w-[104px] shrink-0 sm:w-auto">
+        <li key={t.stage} className="w-[92px] shrink-0 lg:w-auto">
           <button
             onClick={() => onPick(t.stage)}
             aria-pressed={active === t.stage}
-            className={`flex min-h-[72px] w-full flex-col justify-between rounded-[12px] px-3 py-2 text-left ${
+            title={`${BUYER_STAGE_LABELS[t.stage]}: ${t.big} ${t.stage === "declined" ? "declined" : "reached"}, ${t.small}`}
+            className={`flex min-h-[48px] w-full flex-col justify-center rounded-[10px] px-2 py-1 text-left ${
               active === t.stage ? "bg-[var(--navy)] text-white" : "bg-[var(--paper)] text-[var(--ink)]"
             }`}
           >
-            <span className={`text-[11px] font-semibold ${active === t.stage ? "text-white/80" : "text-[var(--ink-soft)]"}`}>{BUYER_STAGE_LABELS[t.stage]}</span>
-            <span className="numeric text-[22px] font-bold leading-none">{t.big}</span>
-            <span className={`text-[10px] ${active === t.stage ? "text-white/70" : "text-[var(--ink-faint)]"}`}>{t.small}</span>
+            <span className={`truncate text-[11px] font-semibold leading-tight ${active === t.stage ? "text-white/80" : "text-[var(--ink-soft)]"}`}>{BUYER_STAGE_LABELS[t.stage]}</span>
+            <span className="flex items-baseline gap-1">
+              <span className="numeric text-[17px] font-bold leading-tight">{t.big}</span>
+              <span className={`truncate text-[10px] ${active === t.stage ? "text-white/70" : "text-[var(--ink-faint)]"}`}>{t.small}</span>
+            </span>
           </button>
         </li>
       ))}

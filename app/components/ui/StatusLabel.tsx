@@ -23,14 +23,19 @@ export default function StatusLabel({
   kind,
   children,
   className = "",
+  icon,
+  title,
 }: {
   kind: StatusKind;
   children: React.ReactNode;
   className?: string;
+  /** Override the kind's default icon (e.g. a triangle on a red "Overdue"). */
+  icon?: typeof CheckIcon;
+  title?: string;
 }) {
-  const Icon = ICON[kind];
+  const Icon = icon ?? ICON[kind];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${COLOR[kind]} ${className}`}>
+    <span title={title} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${COLOR[kind]} ${className}`}>
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span>{children}</span>
     </span>

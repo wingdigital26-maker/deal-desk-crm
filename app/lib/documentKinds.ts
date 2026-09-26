@@ -66,3 +66,29 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+const PLURAL: Record<DocKind, string> = {
+  engagement_letter: "engagement letters",
+  nda: "NDAs",
+  teaser: "teasers",
+  cim: "CIMs",
+  loi: "LOIs",
+  financials: "financials",
+  other: "other documents",
+};
+
+/**
+ * One-line summary of a deal's live documents, in kind order:
+ * "Engagement letter · 6 NDAs · Teaser · CIM v3". A single document shows its
+ * version when past v1. Archived documents are left out. Null when empty.
+ */
+export function docSummary(docs: { kind: string; version: number; archived_at?: string | null }[]): string | null {
+  const live = docs.filter((d) => !d.archived_at);
+  const parts: string[] = [];
+  for (const k of DOC_KINDS) {
+    const of = live.filter((d) => d.kind === k);
+    if (of.length === 1) parts.push(`${DOC_KIND_LABELS[k]}${of[0].version > 1 ? ` v${of[0].version}` : ""}`);
+    else if (of.length > 1) parts.push(`${of.length} ${PLURAL[k]}`);
+  }
+  return parts.length ? parts.join(" · ") : null;
+}

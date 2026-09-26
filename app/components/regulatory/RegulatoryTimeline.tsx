@@ -91,7 +91,7 @@ export default function RegulatoryTimeline({ filings, votes, today }: { filings:
   if (rows.length === 0) {
     return (
       <p className="rounded-[var(--radius-sm)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink-soft)]">
-        The timeline fills in as you add dates to the filings and votes below.
+        The timeline fills in as you add dates to the filings and votes.
       </p>
     );
   }

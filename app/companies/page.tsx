@@ -60,10 +60,12 @@ export default async function CompaniesPage({
   const segmentLabel = (id: string) => firm.segments.find((s) => s.id === id)?.label ?? id;
 
   const columns: Column<CompanyRow>[] = [
-    { key: "name", label: "Company", flex: true, render: (r) => titleCaseCompanyName(r.name) },
+    // Name gets a fixed share so it is never the column that truncates first;
+    // the website (least important) takes what is left.
+    { key: "name", label: "Company", flex: true, widthPct: 26, render: (r) => titleCaseCompanyName(r.name) },
     { key: "segment", label: "Segment", render: (r) => segmentLabel(r.segment_id) },
     { key: "location", label: "Location", render: (r) => [r.city, r.state].filter(Boolean).join(", ") || "Not set" },
-    { key: "domain", label: "Website", priority: 3, render: (r) => r.domain ?? "Not set" },
+    { key: "domain", label: "Website", priority: 2, flex: true, widthPct: 22, render: (r) => r.domain ?? "Not set" },
     { key: "source", label: "Source", priority: 3, render: (r) => sourceLabel(r.source) },
     { key: "signal_score", label: "Signal", className: "text-right numeric", render: (r) => r.signal_score.toFixed(1) },
     {

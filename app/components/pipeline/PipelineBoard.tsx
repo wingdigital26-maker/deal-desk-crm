@@ -292,6 +292,7 @@ export default function PipelineBoard({ stages, cfg }: { stages: readonly string
         <PipelineList
           deals={deals}
           stages={stages}
+          closedStages={cfg.closedStages}
           onMove={moveDeal}
           onPatch={patchDeal}
           onNoted={(id, body) =>

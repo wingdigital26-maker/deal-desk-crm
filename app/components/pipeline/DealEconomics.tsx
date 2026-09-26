@@ -1,7 +1,8 @@
 "use client";
 // Deal economics panel: EBITDA, enterprise value, fee terms and the close
 // forecast, with the expected and weighted fee worked out live from the same
-// pure math the pipeline header uses (app/lib/dealMath.ts).
+// pure math the pipeline header uses (app/lib/dealMath.ts). Only the four
+// stat tiles show by default; "Edit numbers" opens the form.
 import { useState } from "react";
 import Panel from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -32,6 +33,7 @@ export default function DealEconomics({ deal, cfg, onSaved }: { deal: Deal; cfg:
   const [expectedClose, setExpectedClose] = useState(deal.expected_close ?? "");
   const [feeTerms, setFeeTerms] = useState(deal.fee_terms ?? "");
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const parsed = {
@@ -108,9 +110,20 @@ export default function DealEconomics({ deal, cfg, onSaved }: { deal: Deal; cfg:
   return (
     <Panel
       title="Economics"
-      actions={dirty ? <Button size="sm" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</Button> : undefined}
+      actions={
+        <>
+          {dirty && (
+            <Button size="sm" onClick={save} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          )}
+          <Button size="sm" variant={editing ? "quiet" : "secondary"} aria-expanded={editing} aria-controls="econ-form" onClick={() => setEditing((v) => !v)}>
+            {editing ? "Close" : "Edit numbers"}
+          </Button>
+        </>
+      }
     >
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Expected fee" value={fee == null ? "Not set" : formatMoney(fee)} />
         <Stat
           label="Weighted fee"
@@ -123,8 +136,10 @@ export default function DealEconomics({ deal, cfg, onSaved }: { deal: Deal; cfg:
           value={expectedClose ? new Date(expectedClose + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Not set"}
         />
       </div>
-      {error && <div className="mb-3 text-sm text-[var(--bad)]">{error}</div>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {error && <div className="mt-3 text-sm text-[var(--bad)]">{error}</div>}
+      {!editing && dirty && <div className="mt-2 text-[12px] text-[var(--warn)]">Unsaved changes. Save them or open Edit numbers to review.</div>}
+      {editing && (
+      <div id="econ-form" className="mt-4 grid gap-3 sm:grid-cols-2">
         <FieldInput label="EBITDA (trailing)" htmlFor="econ-ebitda" hint={moneyHint} error={badKey === "ebitda" ? "Not a readable amount" : undefined}>
           <input id="econ-ebitda" inputMode="decimal" value={ebitda} onChange={(e) => changeEbitda(e.target.value)} className={inputClass} />
         </FieldInput>
@@ -159,6 +174,7 @@ export default function DealEconomics({ deal, cfg, onSaved }: { deal: Deal; cfg:
           </FieldInput>
         </div>
       </div>
+      )}
     </Panel>
   );
 }

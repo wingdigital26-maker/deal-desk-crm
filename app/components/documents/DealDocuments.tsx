@@ -16,6 +16,7 @@ import {
   DOC_KIND_GROUPS,
   DOC_KIND_LABELS,
   MAX_UPLOAD_BYTES,
+  docSummary,
   formatBytes,
   type DocKind,
 } from "../../lib/documentKinds";
@@ -40,6 +41,8 @@ export default function DealDocuments({ dealId, initial }: { dealId: number; ini
   const [showArchived, setShowArchived] = useState(false);
   const [uploading, setUploading] = useState<{ docKey?: string; title?: string } | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // Collapsed by default to one summary line; "Show all" opens the full list.
+  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -96,6 +99,8 @@ export default function DealDocuments({ dealId, initial }: { dealId: number; ini
 
   const groups = DOC_KINDS.map((k) => ({ kind: k, docs: items.filter((d) => d.kind === k) })).filter((g) => g.docs.length);
   const live = items.filter((d) => !d.archived_at).length;
+  const summary = docSummary(items);
+  const showList = expanded || showArchived;
 
   return (
     <Panel
@@ -124,7 +129,6 @@ export default function DealDocuments({ dealId, initial }: { dealId: number; ini
         </>
       }
     >
-      <p className="text-[13px] text-[var(--ink-soft)]">Every upload is kept as a version. Nothing here is ever deleted, and each download is logged.</p>
 
       {uploading && !uploading.docKey && (
         <div className="mt-4">
@@ -155,8 +159,23 @@ export default function DealDocuments({ dealId, initial }: { dealId: number; ini
             action={!uploading ? <Button variant="secondary" onClick={() => setUploading({})}>Upload a document</Button> : undefined}
           />
         </div>
+      ) : !showList ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <p className="min-w-0 text-sm font-medium text-[var(--ink)]">{summary ?? "Only archived documents"}</p>
+          <Button size="sm" variant="quiet" aria-expanded={false} onClick={() => setExpanded(true)}>
+            Show all {items.length}
+          </Button>
+        </div>
       ) : (
-        <div className="mt-4 space-y-5">
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p className="text-[13px] text-[var(--ink-soft)]">Every upload is kept as a version. Nothing here is ever deleted, and each download is logged.</p>
+            {!showArchived && (
+              <Button size="sm" variant="quiet" aria-expanded onClick={() => setExpanded(false)}>
+                Show less
+              </Button>
+            )}
+          </div>
           {groups.map((g) => (
             <section key={g.kind} aria-labelledby={`docs-${g.kind}`}>
               <h3 id={`docs-${g.kind}`} className="label mb-2">

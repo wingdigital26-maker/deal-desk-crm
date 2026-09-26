@@ -56,7 +56,7 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
 
   const contacts = db()
     .prepare(
-      `SELECT contacts.id, contacts.first_name, contacts.last_name, contacts.title, contacts.email, contacts.email_status, contacts.do_not_contact, lt.last_touch
+      `SELECT contacts.id, contacts.first_name, contacts.last_name, contacts.title, contacts.email, contacts.email_status, contacts.do_not_contact, contacts.relationship, lt.last_touch
        FROM contacts
        LEFT JOIN (SELECT contact_id, MAX(created_at) AS last_touch FROM activities GROUP BY contact_id) lt ON lt.contact_id = contacts.id
        WHERE contacts.company_id = ? ORDER BY contacts.updated_at DESC`

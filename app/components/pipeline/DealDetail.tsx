@@ -13,7 +13,9 @@ import { formatDate, isOverdue } from "./dateUtils";
 import DealEconomics from "./DealEconomics";
 import DealTeam from "./DealTeam";
 import DealSource from "./DealSource";
-import type { StageDefaults } from "../../lib/dealMath";
+import { formatMoney, weightedFee, type StageDefaults } from "../../lib/dealMath";
+import { attention } from "../../lib/attention";
+import AttentionLabel from "./AttentionLabel";
 import type { Deal, Task, TeamMember, UserOption } from "./types";
 
 const SITUATIONS = [
@@ -156,16 +158,34 @@ export default function DealDetail({
           actions={dirty ? <Button size="sm" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</Button> : undefined}
         >
           <div className="text-sm text-[var(--ink-soft)]">
-            {deal.company_name}
+            <Link href={`/companies/${deal.company_id}`} className="font-medium text-[var(--accent-deep)] hover:underline">
+              {deal.company_name}
+            </Link>
             {deal.company_domain ? ` · ${deal.company_domain}` : ""}
           </div>
 
+          {/* Contact and interaction fields come from the server props so a
+              router.refresh() (new note, new main contact) updates them. */}
+          <AtAGlance
+            deal={{
+              ...deal,
+              primary_contact_id: initialDeal.primary_contact_id,
+              primary_contact_name: initialDeal.primary_contact_name,
+              primary_contact_title: initialDeal.primary_contact_title,
+              last_interaction_at: initialDeal.last_interaction_at,
+              last_activity_at: initialDeal.last_activity_at,
+            }}
+            cfg={cfg}
+          />
+
           {error && <div className="mt-2 text-sm text-[var(--bad)]">{error}</div>}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)]">
+            <div>
             <FieldInput label="Deal title" htmlFor="deal-detail-title">
               <input id="deal-detail-title" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
             </FieldInput>
+            </div>
             <FieldInput label="Stage" htmlFor="deal-detail-stage">
               <select
                 id="deal-detail-stage"
@@ -195,6 +215,7 @@ export default function DealDetail({
                 ))}
               </select>
             </FieldInput>
+            <div className="sm:col-span-2 lg:col-span-2">
             <FieldInput label="Next step" htmlFor="deal-detail-next-step">
               <input
                 id="deal-detail-next-step"
@@ -203,6 +224,7 @@ export default function DealDetail({
                 className={inputClass}
               />
             </FieldInput>
+            </div>
             <FieldInput label="Due" htmlFor="deal-detail-next-step-due">
               <input
                 id="deal-detail-next-step-due"
@@ -221,6 +243,7 @@ export default function DealDetail({
 
         <Panel title="Timeline">
           <Timeline
+            limit={5}
             activities={timeline}
             postUrl="/api/activities"
             extra={{ deal_id: deal.id, company_id: deal.company_id }}
@@ -287,24 +310,64 @@ export default function DealDetail({
         <DealTeam dealId={deal.id} initial={team} users={users} />
 
         <DealSource dealId={deal.id} contactId={deal.referral_contact_id ?? null} />
-
-        <Panel title="Company">
-          <div className="text-sm text-[var(--ink)]">
-            <Link href={`/companies/${deal.company_id}`} className="hover:underline">
-              {deal.company_name}
-            </Link>
-          </div>
-          {deal.company_domain && <div className="mt-0.5 text-xs text-[var(--ink-soft)]">{deal.company_domain}</div>}
-          {deal.primary_contact_id && (
-            <div className="mt-3 border-t border-[var(--rule)] pt-3">
-              <div className="label mb-1">Primary contact</div>
-              <Link href={`/contacts/${deal.primary_contact_id}`} className="text-sm text-[var(--ink)] hover:underline">
-                View contact
-              </Link>
-            </div>
-          )}
-        </Panel>
       </div>
     </div>
+  );
+}
+
+/** One line at the top of the deal: the facts a banker checks first. */
+function AtAGlance({ deal, cfg }: { deal: Deal; cfg: StageDefaults }) {
+  const a = attention(deal, cfg.closedStages);
+  const weighted = weightedFee(deal, cfg);
+  const last = deal.last_interaction_at;
+  const item = "min-w-0";
+  const dt = "text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-faint)]";
+  return (
+    <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2 rounded-[12px] bg-[var(--paper)] px-3.5 py-2.5 text-sm sm:flex sm:flex-wrap sm:items-start" aria-label="Deal at a glance">
+      <div className={`${item} order-1 sm:order-none`}>
+        <dt className={dt}>Stage</dt>
+        <dd className={a.late ? "font-bold text-[var(--accent-deep)]" : a.closed ? "text-[var(--ink-soft)]" : "font-semibold text-[var(--ink)]"}>{deal.stage}</dd>
+      </div>
+      <div className={`${item} order-3 col-span-2 sm:order-none sm:min-w-[180px] sm:flex-1`}>
+        <dt className={dt}>Next step</dt>
+        <dd className="flex min-w-0 items-center gap-x-2">
+          {deal.next_step ? (
+            <span className="min-w-0 truncate text-[var(--ink)]" title={deal.next_step}>
+              {deal.next_step}
+            </span>
+          ) : (
+            <span className="italic text-[var(--ink-faint)]">No next step set</span>
+          )}
+          {a.label && a.label.kind !== "quiet" ? (
+            <AttentionLabel a={a} />
+          ) : deal.next_step_due ? (
+            <span className="numeric whitespace-nowrap text-[var(--ink-soft)]">{formatDate(deal.next_step_due)}</span>
+          ) : null}
+        </dd>
+      </div>
+      <div className={`${item} order-4 sm:order-none`}>
+        <dt className={dt}>Weighted fee</dt>
+        <dd className="numeric font-semibold text-[var(--ink)]">{weighted == null ? <span className="font-normal text-[var(--ink-faint)]">No fee terms</span> : formatMoney(weighted)}</dd>
+      </div>
+      <div className={`${item} order-5 sm:order-none`}>
+        <dt className={dt}>Main contact</dt>
+        <dd className="truncate">
+          {deal.primary_contact_id && deal.primary_contact_name ? (
+            <Link href={`/contacts/${deal.primary_contact_id}`} className="text-[var(--accent-deep)] hover:underline" title={deal.primary_contact_title ?? undefined}>
+              {deal.primary_contact_name}
+            </Link>
+          ) : (
+            <span className="text-[var(--ink-faint)]">Not set</span>
+          )}
+        </dd>
+      </div>
+      <div className={`${item} order-2 sm:order-none`}>
+        <dt className={dt}>Last interaction</dt>
+        <dd className={`numeric whitespace-nowrap ${a.quiet ? "font-semibold text-[var(--warn)]" : "text-[var(--ink)]"}`}>
+          {last ? formatDate(last) : <span className="text-[var(--ink-faint)]">None logged</span>}
+          {a.quiet && a.quietDays != null && <span className="font-normal"> · quiet {a.quietDays} days</span>}
+        </dd>
+      </div>
+    </dl>
   );
 }

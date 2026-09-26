@@ -62,8 +62,10 @@ export default function CompanyPeople({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ primary_contact_id: id }),
     }).catch(() => null);
-    if (res?.ok) setPrimary(id);
-    else setError("Could not set the main contact.");
+    if (res?.ok) {
+      setPrimary(id);
+      router.refresh(); // the deal header's "Main contact" reads from the server
+    } else setError("Could not set the main contact.");
   }
 
   async function add() {

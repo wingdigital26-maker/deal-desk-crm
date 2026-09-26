@@ -58,6 +58,8 @@ export default function RegulatoryPanel({ dealId, initial }: { dealId: number; i
   const [data, setData] = useState<Data>(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The timeline stays in view; the filing and vote editors open on demand.
+  const [editing, setEditing] = useState(false);
   const today = todayISO();
 
   const send: Send = async (method, body, query = "") => {
@@ -115,15 +117,33 @@ export default function RegulatoryPanel({ dealId, initial }: { dealId: number; i
         </Button>
       }
     >
-      <p className="-mt-2 mb-4 text-sm text-[var(--ink-soft)]">
-        Applications run in parallel after signing. Each agency&apos;s clock starts when it accepts the application as substantially complete.
-        Turning the tracker off hides it and keeps every date.
-      </p>
       {error && <div className="mb-3 text-sm text-[var(--bad)]">{error}</div>}
 
       <RegulatoryTimeline filings={data.filings} votes={data.votes} today={today} />
 
-      <div className="mt-6 flex items-baseline justify-between gap-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="min-w-0 text-sm text-[var(--ink)]">
+          {data.filings.length === 0
+            ? "No filings tracked yet"
+            : data.filings.map((f) => `${filingLabel(f)} ${FILING_STATUS_LABELS[f.status].toLowerCase()}`).join(" · ")}
+          <span className="text-[var(--ink-soft)]">
+            {" · "}
+            {data.votes.length} shareholder {data.votes.length === 1 ? "vote" : "votes"}
+          </span>
+        </p>
+        <Button size="sm" variant="secondary" aria-expanded={editing} aria-controls="reg-editors" onClick={() => setEditing((v) => !v)}>
+          {editing ? "Close" : "Edit filings and votes"}
+        </Button>
+      </div>
+
+      {editing && (
+      <div id="reg-editors">
+      <p className="mt-4 text-sm text-[var(--ink-soft)]">
+        Applications run in parallel after signing. Each agency&apos;s clock starts when it accepts the application as substantially complete.
+        Turning the tracker off hides it and keeps every date.
+      </p>
+
+      <div className="mt-4 flex items-baseline justify-between gap-3">
         <h3 className="text-[15px] font-bold text-[var(--ink)]">Filings</h3>
         <span className="text-xs text-[var(--ink-soft)]">
           {data.filings.length} {data.filings.length === 1 ? "regulator" : "regulators"}
@@ -157,6 +177,9 @@ export default function RegulatoryPanel({ dealId, initial }: { dealId: number; i
             </Button>
           ))}
         </div>
+      )}
+
+      </div>
       )}
 
       <Guidance />

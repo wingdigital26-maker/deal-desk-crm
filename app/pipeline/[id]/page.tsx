@@ -26,8 +26,13 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
 
   const deal = db()
     .prepare(
-      `SELECT d.*, c.name AS company_name, c.domain AS company_domain
-       FROM deals d JOIN companies c ON c.id = d.company_id WHERE d.id = ?`
+      `SELECT d.*, c.name AS company_name, c.domain AS company_domain,
+              TRIM(COALESCE(pc.first_name,'') || ' ' || COALESCE(pc.last_name,'')) AS primary_contact_name, pc.title AS primary_contact_title,
+              (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id AND a.kind IN ('note','call','meeting','email-in','email-out')) AS last_interaction_at,
+              (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at
+       FROM deals d JOIN companies c ON c.id = d.company_id
+       LEFT JOIN contacts pc ON pc.id = d.primary_contact_id
+       WHERE d.id = ?`
     )
     .get(id) as Deal | undefined;
   if (!deal) notFound();
