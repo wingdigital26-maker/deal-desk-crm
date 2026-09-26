@@ -6,7 +6,7 @@ import EmptyState from "../crm/EmptyState";
 import DataTable, { type Column } from "../crm/DataTable";
 import { Button } from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import DealCard from "./DealCard";
+import DealCard, { PeopleLine } from "./DealCard";
 import CreateDealForm from "./CreateDealForm";
 import { formatDate, isOverdue } from "./dateUtils";
 import PipelineForecast from "./PipelineForecast";
@@ -410,6 +410,7 @@ function DealTable({
   const columns: Column<Deal>[] = [
     { key: "title", label: "Deal", render: (d) => d.title },
     { key: "company", label: "Company", render: (d) => <span className="text-[var(--ink-soft)]">{d.company_name}</span> },
+    { key: "people", label: "People", render: (d) => <PeopleLine deal={d} /> },
     {
       key: "stage",
       label: "Stage",

@@ -5,6 +5,7 @@ import { isValidEmail } from "../../lib/csv";
 import * as v from "../../lib/validate";
 import { setPrimary } from "../../lib/contactCompanies";
 import { REFERRAL_KINDS } from "../../lib/referralKinds";
+import { RELATIONSHIPS } from "../../lib/relationship";
 
 export async function GET(req: Request) {
   const user = await requireUser();
@@ -56,8 +57,10 @@ export async function POST(req: Request) {
 
   let firstName: string | null, lastName: string | null, title: string | null, linkedinUrl: string | null;
   let referralKind: string | null;
+  let relationship: string | null;
   try {
     referralKind = v.enumFromList("referral_kind", body.referral_kind, REFERRAL_KINDS);
+    relationship = v.enumFromList("relationship", body.relationship, RELATIONSHIPS);
     firstName = v.name("first_name", body.first_name);
     lastName = v.name("last_name", body.last_name);
     title = v.title("title", body.title);
@@ -98,10 +101,10 @@ export async function POST(req: Request) {
   try {
     const result = db()
       .prepare(
-        `INSERT INTO contacts (company_id, first_name, last_name, title, email, email_status, phone, linkedin_url, source, referral_kind)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`
+        `INSERT INTO contacts (company_id, first_name, last_name, title, email, email_status, phone, linkedin_url, source, referral_kind, relationship)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`
       )
-      .run(companyId, firstName, lastName, title, email, emailStatus, phone, linkedinUrl, source, referralKind);
+      .run(companyId, firstName, lastName, title, email, emailStatus, phone, linkedinUrl, source, referralKind, relationship);
     const id = Number(result.lastInsertRowid);
     if (companyId) setPrimary(id, companyId);
     audit({ actorUserId: user.id, actorLabel: user.email, action: "contact.create", entity: "contact", entityId: id, detail: { email } });

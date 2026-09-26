@@ -4,6 +4,7 @@ import StatusLabel from "../ui/StatusLabel";
 import { ChevronDownIcon } from "../ui/icons";
 import { formatDate, isOverdue } from "./dateUtils";
 import { formatMoney } from "../../lib/dealMath";
+import { bankerFirstName } from "../../lib/relationship";
 import type { Deal } from "./types";
 
 export default function DealCard({
@@ -39,6 +40,7 @@ export default function DealCard({
           {deal.ebitda != null && <>EBITDA {formatMoney(deal.ebitda)}</>}
         </div>
       )}
+      <PeopleLine deal={deal} />
       {deal.next_step ? (
         <div className="mt-2 truncate text-xs text-[var(--ink-soft)]">{deal.next_step}</div>
       ) : (
@@ -75,6 +77,31 @@ export default function DealCard({
           <span />
         )}
       </div>
+    </div>
+  );
+}
+
+/** Who the banker knows at this company: the heart of the pipe. */
+export function PeopleLine({ deal }: { deal: Deal }) {
+  const total = deal.people_count ?? 0;
+  const known = deal.known_count ?? 0;
+  const banker = bankerFirstName();
+  return (
+    <div className="mt-1.5 text-[12px] text-[var(--ink-soft)]">
+      {total === 0 ? (
+        <span className="italic text-[var(--ink-faint)]">No people added yet</span>
+      ) : known === 0 ? (
+        <>
+          {total} {total === 1 ? "person" : "people"}, none {banker} knows yet
+        </>
+      ) : (
+        <>
+          <span className="font-semibold text-[var(--ink)]">{banker} knows </span>
+          {deal.known_names}
+          {known > 3 ? ` +${known - 3}` : ""}
+          {total > known ? <span className="text-[var(--ink-faint)]"> · {total} people</span> : null}
+        </>
+      )}
     </div>
   );
 }

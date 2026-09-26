@@ -383,6 +383,8 @@ const COLUMN_MIGRATIONS: [table: string, column: string, ddl: string][] = [
   // P3 relationships: referral sources are contacts with a kind; a deal credits one.
   // referral_kind: cpa | attorney | wealth-manager | lender | banker | other (null = not a source).
   ["contacts", "referral_kind", "TEXT"],
+  // How well the banker knows this person (knows-well | knows | met | not-yet; null = not set).
+  ["contacts", "relationship", "TEXT"],
   // Plain INTEGER (ALTER TABLE cannot add a real FK everywhere): the contact
   // DELETE route clears it, and every read LEFT JOINs contacts.
   ["deals", "referral_contact_id", "INTEGER"],

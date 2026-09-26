@@ -13,7 +13,8 @@ import { LogTouchButton } from "./components/crm/TouchCadence";
 import { cadenceLabel } from "./lib/cadenceLabels";
 import { displayName } from "./components/crm/format";
 import { upcomingRegulatoryDates, type Filing, type ShareholderVote } from "./lib/regulatory";
-import { ActivityIcon, ColumnsIcon, InboxIcon, TriangleAlertIcon } from "./components/ui/icons";
+import { CalendarIcon, ColumnsIcon, TriangleAlertIcon, UsersIcon } from "./components/ui/icons";
+import { bankerFirstName } from "./lib/relationship";
 
 export const metadata = { title: `Today | ${firm.productName}` };
 
@@ -35,31 +36,6 @@ type QuietDealRow = {
   last_activity_at: string | null;
 };
 
-type ReplyRow = {
-  id: number;
-  from_email: string;
-  subject: string | null;
-  received_at: string;
-  kind: "reply" | "bounce" | "unsubscribe" | "auto-reply";
-  first_name: string | null;
-  last_name: string | null;
-  company_name: string | null;
-};
-
-function replyKindLabel(kind: ReplyRow["kind"]): { kind: "ok" | "info" | "warn" | "stop"; text: string } {
-  switch (kind) {
-    case "reply":
-      return { kind: "ok", text: "Replied" };
-    case "auto-reply":
-      return { kind: "info", text: "Auto reply" };
-    case "bounce":
-      return { kind: "stop", text: "Bounced" };
-    case "unsubscribe":
-      return { kind: "warn", text: "Asked to stop" };
-  }
-}
-
-type SignalRow = { id: number; title: string; kind: string; company_id: number; company_name: string; created_at: string };
 
 function overdueDays(due: string): number {
   const then = new Date(due.slice(0, 10) + "T00:00:00");
@@ -128,30 +104,6 @@ export default async function TodayPage() {
 
   const dueRelationships = relationshipsDue(8);
 
-  let replies: ReplyRow[] = [];
-  let repliesUnavailable = false;
-  try {
-    replies = db()
-      .prepare(
-        `SELECT r.id, r.from_email, r.subject, r.received_at, r.kind,
-                c.first_name, c.last_name, co.name AS company_name
-         FROM inbound_replies r
-         LEFT JOIN contacts c ON c.id = r.contact_id
-         LEFT JOIN companies co ON co.id = c.company_id
-         WHERE r.handled = 0 ORDER BY r.received_at DESC LIMIT 5`
-      )
-      .all() as ReplyRow[];
-  } catch {
-    repliesUnavailable = true;
-  }
-
-  const signals = db()
-    .prepare(
-      `SELECT s.id, s.title, s.kind, s.company_id, c.name AS company_name, s.created_at
-       FROM signals s JOIN companies c ON c.id = s.company_id
-       ORDER BY s.created_at DESC LIMIT 5`
-    )
-    .all() as SignalRow[];
 
   // Desk-at-a-glance counts. Cheap COUNT queries so the Today screen always
   // opens with a pulse of the desk even when nothing is due (it used to leave a
@@ -159,57 +111,29 @@ export default async function TodayPage() {
   const openDeals = (db()
     .prepare(`SELECT COUNT(*) AS n FROM deals WHERE stage NOT IN ('Closed', 'Passed')`)
     .get() as { n: number }).n;
-  let unhandledReplies = 0;
-  try {
-    unhandledReplies = (db()
-      .prepare(`SELECT COUNT(*) AS n FROM inbound_replies WHERE handled = 0`)
-      .get() as { n: number }).n;
-  } catch {
-    unhandledReplies = 0;
-  }
-  const signals7d = (db()
-    .prepare(`SELECT COUNT(*) AS n FROM signals WHERE created_at >= datetime('now', '-7 days')`)
-    .get() as { n: number }).n;
-
+  const bankerName = bankerFirstName();
   const glance: { label: string; value: number; href: string; tint: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
-    { label: "Open deals in the pipeline", value: openDeals, href: "/pipeline", tint: "var(--tint-1)", Icon: ColumnsIcon },
-    { label: "Deals quiet 21+ days", value: quietDeals.length, href: "/pipeline", tint: "var(--tint-2)", Icon: TriangleAlertIcon },
-    { label: "Replies waiting on you", value: unhandledReplies, href: "/outbound/replies", tint: "var(--tint-3)", Icon: InboxIcon },
-    { label: "New signals this week", value: signals7d, href: "/sourcing/signals", tint: "var(--tint-4)", Icon: ActivityIcon },
+    { label: "Open deals", value: openDeals, href: "/pipeline", tint: "var(--tint-1)", Icon: ColumnsIcon },
+    { label: "Deal steps due or overdue", value: needs.length, href: "#needs", tint: "var(--tint-2)", Icon: CalendarIcon },
+    { label: "Deals quiet 21+ days", value: quietDeals.length, href: "/pipeline", tint: "var(--tint-3)", Icon: TriangleAlertIcon },
+    { label: "People due for a touch", value: dueRelationships.length, href: "/contacts", tint: "var(--tint-4)", Icon: UsersIcon },
   ];
 
-  // Week strip + schedule (Dashboards V2 pattern): every open task and deal
-  // next step due this week, Monday to Sunday. Real rows only.
-  const base = new Date(today + "T00:00:00");
-  const monday = new Date(base);
-  monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
-  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const week = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
-  });
-  const weekStart = iso(week[0]);
-  const weekEnd = iso(week[6]);
-  const weekTasks = db()
+  // Your deals: every open deal with the people the banker knows there
+  // (2026-09-26: the pipe is one company and the contacts the banker knows).
+  const myDeals = db()
     .prepare(
-      `SELECT t.id, t.title, t.due, c.name AS company_name FROM tasks t
-       LEFT JOIN deals d ON d.id = t.deal_id LEFT JOIN companies c ON c.id = d.company_id
-       WHERE t.done = 0 AND t.due >= ? AND t.due <= ? ORDER BY t.due`
+      `SELECT d.id, d.title, d.stage, d.next_step, d.next_step_due, c.name AS company_name,
+              (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id) AS people_count,
+              (SELECT GROUP_CONCAT(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) || COALESCE(' (' || p.title || ')', ''), ', ')
+                 FROM contacts p WHERE p.company_id = d.company_id AND p.relationship IN ('knows-well','knows')) AS known
+       FROM deals d JOIN companies c ON c.id = d.company_id
+       WHERE d.stage NOT IN ('Closed', 'Passed')
+       ORDER BY (d.next_step_due IS NULL), d.next_step_due, d.updated_at DESC
+       LIMIT 12`
     )
-    .all(weekStart, weekEnd + "T23:59:59") as { id: number; title: string; due: string; company_name: string | null }[];
-  const weekDeals = db()
-    .prepare(
-      `SELECT d.id, d.next_step, d.next_step_due, c.name AS company_name FROM deals d JOIN companies c ON c.id = d.company_id
-       WHERE d.next_step_due >= ? AND d.next_step_due <= ? AND d.stage NOT IN ('Closed', 'Passed') ORDER BY d.next_step_due`
-    )
-    .all(weekStart, weekEnd + "T23:59:59") as { id: number; next_step: string | null; next_step_due: string; company_name: string }[];
-  const schedule = [
-    ...weekTasks.map((t) => ({ key: `t${t.id}`, title: t.title, due: t.due.slice(0, 10), who: t.company_name, href: "/tasks", kind: "Task" })),
-    ...weekDeals.map((d) => ({ key: `d${d.id}`, title: d.next_step ?? "Next step", due: d.next_step_due.slice(0, 10), who: d.company_name, href: `/pipeline/${d.id}`, kind: "Deal step" })),
-  ].sort((a, b) => a.due.localeCompare(b.due));
-  const perDay = new Map<string, number>();
-  for (const s of schedule) perDay.set(s.due, (perDay.get(s.due) ?? 0) + 1);
+    .all() as { id: number; title: string; stage: string; next_step: string | null; next_step_due: string | null; company_name: string; people_count: number; known: string | null }[];
+
 
   // P5: saved regulatory and shareholder-vote dates in the next 30 days on bank / FIG deals.
   const figDeals = db()
@@ -257,65 +181,44 @@ export default async function TodayPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="min-w-0 space-y-6">
-          <div className="card p-5">
-            <div className="mb-3 flex items-baseline justify-between gap-3">
-              <h2 className="text-[16px] font-bold text-[var(--ink)]">Weekly schedule</h2>
-              <span className="text-xs text-[var(--ink-soft)]">
-                {week[0].toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-              </span>
-            </div>
-            <ol className="grid grid-cols-7 gap-1.5">
-              {week.map((d) => {
-                const key = iso(d);
-                const isToday = key === today;
-                const n = perDay.get(key) ?? 0;
-                return (
-                  <li
-                    key={key}
-                    aria-current={isToday ? "date" : undefined}
-                    className={`flex flex-col items-center gap-0.5 rounded-[14px] py-2.5 ${isToday ? "bg-[var(--navy)] text-white" : "bg-[var(--paper)] text-[var(--ink)]"}`}
-                  >
-                    <span className={`text-[11px] ${isToday ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
-                      {d.toLocaleDateString("en-US", { weekday: "short" })}
-                    </span>
-                    <span className="numeric text-[17px] font-semibold">{d.getDate()}</span>
-                    <span className={`text-[10px] leading-tight ${isToday ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
-                      {n > 0 ? `${n} due` : " "}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-            {schedule.length === 0 ? (
-              <p className="mt-4 text-sm text-[var(--ink-soft)]">Nothing scheduled this week. Tasks and deal next steps with a due date land here.</p>
+          <Panel title="Your deals" actions={<ButtonLink href="/pipeline" variant="quiet" size="sm">Pipeline</ButtonLink>}>
+            {myDeals.length === 0 ? (
+              <p className="text-sm text-[var(--ink-soft)]">No open deals yet. Open one from a company page or the Pipeline.</p>
             ) : (
-              <ul className="mt-4 divide-y divide-[var(--rule)]">
-                {schedule.map((s) => {
-                  const d = new Date(s.due + "T00:00:00");
-                  const past = s.due < today;
-                  return (
-                    <li key={s.key}>
-                      <Link href={s.href} className="flex min-h-[56px] items-center gap-3 py-2 hover:bg-[var(--paper)]">
-                        <span className="flex w-12 shrink-0 flex-col items-center rounded-[12px] bg-[var(--paper)] py-1.5">
-                          <span className="text-[10px] font-semibold uppercase text-[var(--ink-soft)]">{d.toLocaleDateString("en-US", { month: "short" })}</span>
-                          <span className="numeric text-[15px] font-semibold text-[var(--ink)]">{d.getDate()}</span>
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm text-[var(--ink)]">{s.title}</span>
-                          <span className="block truncate text-xs text-[var(--ink-soft)]">{s.kind}{s.who ? ` for ${s.who}` : ""}</span>
-                        </span>
-                        <StatusLabel kind={past ? "warn" : s.due === today ? "info" : "ok"} className="shrink-0">
-                          {past ? "Overdue" : s.due === today ? "Today" : "Upcoming"}
-                        </StatusLabel>
-                      </Link>
-                    </li>
-                  );
-                })}
+              <ul className="divide-y divide-[var(--rule)]">
+                {myDeals.map((d) => (
+                  <li key={d.id}>
+                    <Link href={`/pipeline/${d.id}`} className="block py-3 hover:bg-[var(--paper)]">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 truncate text-[15px] font-bold text-[var(--ink)]">{d.company_name}</span>
+                        <span className="shrink-0 text-xs text-[var(--ink-soft)]">{d.stage}</span>
+                      </div>
+                      <div className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+                        {d.known ? (
+                          <>
+                            <span className="font-semibold text-[var(--ink)]">{bankerName} knows </span>
+                            {d.known}
+                          </>
+                        ) : d.people_count ? (
+                          `${d.people_count} ${d.people_count === 1 ? "person" : "people"} on file, none ${bankerName} knows yet`
+                        ) : (
+                          "No people added yet"
+                        )}
+                      </div>
+                      {d.next_step && (
+                        <div className="mt-0.5 truncate text-xs text-[var(--ink-faint)]">
+                          Next: {d.next_step}
+                          {d.next_step_due ? ` · ${formatDate(d.next_step_due)}` : ""}
+                        </div>
+                      )}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
-          </div>
+          </Panel>
 
-          <div>
+          <div id="needs">
           <h2 className="mb-3 text-[16px] font-bold text-[var(--ink)]">Needs you today</h2>
           {needs.length === 0 ? (
             <p className="card px-5 py-4 text-sm text-[var(--ink-soft)]">
@@ -323,7 +226,7 @@ export default async function TodayPage() {
             </p>
           ) : (
             <ul className="card">
-              {needs.map((n) => {
+              {needs.slice(0, 6).map((n) => {
                 const overdue = isOverdue(n.due);
                 return (
                   <li
@@ -371,6 +274,11 @@ export default async function TodayPage() {
                 );
               })}
             </ul>
+          )}
+          {needs.length > 6 && (
+            <p className="mt-2 text-sm text-[var(--ink-soft)]">
+              And {needs.length - 6} more. <Link href="/tasks" className="underline">See every task</Link>
+            </p>
           )}
           </div>
         </section>
@@ -446,51 +354,7 @@ export default async function TodayPage() {
             )}
           </Panel>
 
-          <Panel title="New replies" actions={<ButtonLink href="/outbound/replies" variant="quiet" size="sm">See all</ButtonLink>}>
-            {repliesUnavailable ? (
-              <p className="text-sm text-[var(--ink-soft)]">Reply tracking is not set up for this workspace yet.</p>
-            ) : replies.length === 0 ? (
-              <p className="text-sm text-[var(--ink-soft)]">No unhandled replies. Anything that comes in will show up here.</p>
-            ) : (
-              <ul className="space-y-3">
-                {replies.map((r) => {
-                  const name = [r.first_name, r.last_name].filter(Boolean).join(" ");
-                  const label = replyKindLabel(r.kind);
-                  return (
-                    <li key={r.id} className="min-w-0 text-sm">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[var(--ink)]" title={name || r.from_email}>
-                          {name || r.from_email}
-                        </span>
-                        {name && r.company_name && (
-                          <span className="hidden shrink-0 max-w-[35%] truncate text-[var(--ink-soft)] sm:block" title={r.company_name}>
-                            &middot; {r.company_name}
-                          </span>
-                        )}
-                        <StatusLabel kind={label.kind} className="shrink-0">{label.text}</StatusLabel>
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-[var(--ink-soft)]">{r.subject ?? "No subject"}</div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Panel>
 
-          <Panel title="New signals" actions={<ButtonLink href="/sourcing/signals" variant="quiet" size="sm">See all</ButtonLink>}>
-            {signals.length === 0 ? (
-              <p className="text-sm text-[var(--ink-soft)]">No signals collected yet. The sourcing scrapers and Apollo imports feed this list.</p>
-            ) : (
-              <ul className="space-y-3">
-                {signals.map((s) => (
-                  <li key={s.id} className="min-w-0 text-sm">
-                    <div className="truncate text-[var(--ink)]" title={s.company_name}>{s.company_name}</div>
-                    <div className="mt-0.5 truncate text-xs text-[var(--ink-soft)] capitalize">{s.title}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
         </div>
       </div>
     </div>

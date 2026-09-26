@@ -21,6 +21,9 @@ export type Deal = {
   expected_close?: string | null;
   probability?: number | null;
   referral_contact_id?: number | null;
+  people_count?: number;
+  known_count?: number;
+  known_names?: string | null;
 };
 
 export type TeamMember = { user_id: number; name: string; role: string };

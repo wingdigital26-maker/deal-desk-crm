@@ -17,6 +17,7 @@ type AuditRow = {
   entity: string | null;
   entity_id: number | null;
   detail_json: string;
+  actor_name?: string | null;
   created_at: string;
 };
 
@@ -40,21 +41,21 @@ export default async function AuditPage({
   const clauses: string[] = [];
   const params: (string | number)[] = [];
   if (sp.action) {
-    clauses.push("action = ?");
+    clauses.push("audit_log.action = ?");
     params.push(sp.action);
   }
   if (sp.entity) {
-    clauses.push("entity = ?");
+    clauses.push("audit_log.entity = ?");
     params.push(sp.entity);
   }
   if (sp.from) {
     // created_at is "YYYY-MM-DD HH:MM:SS"; compare on the date part so the
     // picked day itself is included.
-    clauses.push("date(created_at) >= date(?)");
+    clauses.push("date(audit_log.created_at) >= date(?)");
     params.push(sp.from);
   }
   if (sp.to) {
-    clauses.push("date(created_at) <= date(?)");
+    clauses.push("date(audit_log.created_at) <= date(?)");
     params.push(sp.to);
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
@@ -63,16 +64,13 @@ export default async function AuditPage({
 
   const total = (db().prepare(`SELECT COUNT(*) as c FROM audit_log ${where}`).get(...params) as { c: number }).c;
   const rows = db()
-    .prepare(`SELECT * FROM audit_log ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+    .prepare(`SELECT audit_log.*, users.name AS actor_name FROM audit_log LEFT JOIN users ON users.id = audit_log.actor_user_id ${where} ORDER BY audit_log.created_at DESC, audit_log.id DESC LIMIT ? OFFSET ?`)
     .all(...params, PAGE_SIZE, offset) as AuditRow[];
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const actions = (db().prepare("SELECT DISTINCT action FROM audit_log ORDER BY action").all() as { action: string }[]).map(
     (r) => r.action
   );
-  const entities = (
-    db().prepare("SELECT DISTINCT entity FROM audit_log WHERE entity IS NOT NULL ORDER BY entity").all() as { entity: string }[]
-  ).map((r) => r.entity);
 
   const qs = (overrides: Record<string, string | number | undefined>) => {
     const merged = { ...sp, ...overrides };
@@ -83,29 +81,19 @@ export default async function AuditPage({
     return `?${p.toString()}`;
   };
 
+  // Kept deliberately short (Jack, 2026-09-26): when, who, what. The full
+  // record (entity, ids, before/after detail) is still stored and is in the CSV.
   const columns: Column<AuditRow>[] = [
     { key: "when", label: "When", className: "numeric", render: (r) => new Date(r.created_at.replace(" ", "T") + "Z").toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) },
-    { key: "actor", label: "Actor", render: (r) => r.actor_label ?? "System" },
-    { key: "action", label: "Action", render: (r) => actionLabel(r.action) },
-    { key: "raw_action", label: "System name", priority: 3, render: (r) => <span className="text-xs text-[var(--ink-faint)]">{r.action}</span> },
-    { key: "entity", label: "Record", priority: 2, render: (r) => (r.entity ? `${r.entity} #${r.entity_id}` : "None") },
-    {
-      key: "detail",
-      label: "Detail",
-      flex: true,
-      render: (r) => (
-        <span className="block max-w-full truncate text-xs text-[var(--ink-faint)]" title={r.detail_json}>
-          {r.detail_json}
-        </span>
-      ),
-    },
+    { key: "actor", label: "Who", render: (r) => r.actor_name ?? r.actor_label ?? "System" },
+    { key: "action", label: "What", render: (r) => actionLabel(r.action) },
   ];
 
   return (
     <div className="max-w-5xl">
       <PageHeader
         title="Audit trail"
-        subtitle={`Every state change, append-only. ${total} entries.`}
+        subtitle={`Who did what, and when. ${total} entries. The full record is kept and is in the CSV.`}
         actions={
           <ButtonLink
             href={`/api/audit?format=csv${sp.action || sp.entity || sp.from || sp.to ? "&" + qs({ page: undefined }).slice(1) : ""}`}
@@ -117,19 +105,11 @@ export default async function AuditPage({
       />
 
       <form method="get" className="card mb-6 flex flex-wrap items-end gap-3 p-4">
-        <Select id="audit-action" name="action" label="Action" defaultValue={sp.action ?? ""} wrapperClassName="w-[180px]">
+        <Select id="audit-action" name="action" label="What" defaultValue={sp.action ?? ""} wrapperClassName="w-[180px]">
           <option value="">All</option>
           {actions.map((a) => (
             <option key={a} value={a}>
               {actionLabel(a)}
-            </option>
-          ))}
-        </Select>
-        <Select id="audit-entity" name="entity" label="Entity" defaultValue={sp.entity ?? ""} wrapperClassName="w-[160px]">
-          <option value="">All</option>
-          {entities.map((e) => (
-            <option key={e} value={e}>
-              {e}
             </option>
           ))}
         </Select>

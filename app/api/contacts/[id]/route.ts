@@ -3,6 +3,7 @@ import { db, audit } from "../../../lib/db";
 import { requireUser } from "../../../lib/session";
 import { isValidEmail } from "../../../lib/csv";
 import * as v from "../../../lib/validate";
+import { RELATIONSHIPS } from "../../../lib/relationship";
 import { setPrimary } from "../../../lib/contactCompanies";
 import { REFERRAL_KINDS } from "../../../lib/referralKinds";
 
@@ -72,6 +73,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if ("email_status" in body) fields.email_status = str(body.email_status);
     if ("phone" in body) fields.phone = str(body.phone);
     if ("linkedin_url" in body) fields.linkedin_url = v.url("linkedin_url", body.linkedin_url);
+    if ("relationship" in body) {
+      fields.relationship = v.enumFromList("relationship", body.relationship, RELATIONSHIPS);
+    }
     if ("touch_every_days" in body) {
       fields.touch_every_days = v.integerRange("touch_every_days", body.touch_every_days, 1, 730);
     }

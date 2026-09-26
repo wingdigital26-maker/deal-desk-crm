@@ -25,7 +25,8 @@ export const NAV: NavItem[] = [
   { href: "/outbound", label: "Outbound", group: "Work" },
   { href: "/companies", label: "Companies", group: "Relationships" },
   { href: "/contacts", label: "Contacts", group: "Relationships" },
-  { href: "/sourcing", label: "Sourcing", group: "Relationships" },
+  // 2026-09-26 (Jack): Sourcing is parked, one thing at a time. The /sourcing
+  // routes still work; they are just not in the menu.
   { href: "/contacts/referrals", label: "Referral sources", group: "Relationships", parent: "/contacts" },
   { href: "/outbound/queue", label: "Queue", group: "Work", parent: "/outbound" },
   { href: "/outbound/replies", label: "Replies", group: "Work", parent: "/outbound" },

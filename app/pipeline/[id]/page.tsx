@@ -5,6 +5,9 @@ import { firm } from "../../../firm.config";
 import { ButtonLink } from "../../components/ui/Button";
 import DealDetail from "../../components/pipeline/DealDetail";
 import BuyerLog from "../../components/buyers/BuyerLog";
+import CompanyPeople from "../../components/pipeline/CompanyPeople";
+import { peopleAtCompany } from "../../lib/companyPeople";
+import { bankerFirstName } from "../../lib/relationship";
 import { funnel, listBuyers, reached } from "../../lib/buyers";
 import RegulatoryPanel from "../../components/regulatory/RegulatoryPanel";
 import { listFilings, listVotes } from "../../lib/regulatoryStore";
@@ -62,7 +65,20 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
           Back to pipeline
         </ButtonLink>
       </div>
-      <DealDetail deal={deal} tasks={tasks} timeline={timeline} stages={firm.dealStages} isOwner={user.role === "owner"} cfg={cfg} team={team} users={users} />
+      <DealDetail deal={deal} tasks={tasks} timeline={timeline} stages={firm.dealStages} isOwner={user.role === "owner"} cfg={cfg}
+        team={team}
+        users={users}
+        people={
+          <CompanyPeople
+            companyId={deal.company_id}
+            companyName={deal.company_name}
+            banker={bankerFirstName()}
+            primaryContactId={deal.primary_contact_id}
+            dealId={deal.id}
+            initial={peopleAtCompany(deal.company_id)}
+          />
+        }
+      />
       <div className="mt-6">
         <BuyerLog dealId={deal.id} initial={{ items: buyers, funnel: funnel(buyers), reached: reached(buyers) }} ndaDocs={ndaDocs} />
       </div>

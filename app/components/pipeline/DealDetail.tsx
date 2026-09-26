@@ -32,7 +32,9 @@ export default function DealDetail({
   cfg,
   team,
   users,
+  people,
 }: {
+  people?: React.ReactNode;
   deal: Deal;
   tasks: Task[];
   timeline: Activity[];
@@ -212,6 +214,8 @@ export default function DealDetail({
             </FieldInput>
           </div>
         </Panel>
+
+        {people}
 
         <DealEconomics deal={deal} cfg={cfg} onSaved={(d) => setDeal((cur) => ({ ...cur, ...d }))} />
 

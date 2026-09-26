@@ -34,7 +34,12 @@ export async function GET(req: Request) {
     ? (db()
         .prepare(
           `SELECT d.*, c.name AS company_name, c.domain AS company_domain,
-                  (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at
+                  (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at,
+                  (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id) AS people_count,
+                  (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id AND p.relationship IN ('knows-well','knows')) AS known_count,
+                  (SELECT GROUP_CONCAT(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), ', ') FROM
+                     (SELECT first_name, last_name FROM contacts WHERE company_id = d.company_id AND relationship IN ('knows-well','knows')
+                      ORDER BY CASE relationship WHEN 'knows-well' THEN 0 ELSE 1 END, last_name LIMIT 3) p) AS known_names
            FROM deals d
            JOIN companies c ON c.id = d.company_id
            WHERE d.title LIKE ? OR c.name LIKE ?
@@ -45,7 +50,12 @@ export async function GET(req: Request) {
     : (db()
         .prepare(
           `SELECT d.*, c.name AS company_name, c.domain AS company_domain,
-                  (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at
+                  (SELECT MAX(a.created_at) FROM activities a WHERE a.deal_id = d.id) AS last_activity_at,
+                  (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id) AS people_count,
+                  (SELECT COUNT(*) FROM contacts p WHERE p.company_id = d.company_id AND p.relationship IN ('knows-well','knows')) AS known_count,
+                  (SELECT GROUP_CONCAT(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), ', ') FROM
+                     (SELECT first_name, last_name FROM contacts WHERE company_id = d.company_id AND relationship IN ('knows-well','knows')
+                      ORDER BY CASE relationship WHEN 'knows-well' THEN 0 ELSE 1 END, last_name LIMIT 3) p) AS known_names
            FROM deals d
            JOIN companies c ON c.id = d.company_id
            ORDER BY d.updated_at DESC`
