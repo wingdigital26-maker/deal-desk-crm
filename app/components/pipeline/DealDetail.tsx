@@ -12,6 +12,7 @@ import Timeline, { type Activity } from "../crm/Timeline";
 import { formatDate, isOverdue } from "./dateUtils";
 import DealEconomics from "./DealEconomics";
 import DealTeam from "./DealTeam";
+import DealSource from "./DealSource";
 import type { StageDefaults } from "../../lib/dealMath";
 import type { Deal, Task, TeamMember, UserOption } from "./types";
 
@@ -280,6 +281,8 @@ export default function DealDetail({
         </Panel>
 
         <DealTeam dealId={deal.id} initial={team} users={users} />
+
+        <DealSource dealId={deal.id} contactId={deal.referral_contact_id ?? null} />
 
         <Panel title="Company">
           <div className="text-sm text-[var(--ink)]">

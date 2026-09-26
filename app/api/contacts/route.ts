@@ -3,6 +3,8 @@ import { db, audit } from "../../lib/db";
 import { requireUser } from "../../lib/session";
 import { isValidEmail } from "../../lib/csv";
 import * as v from "../../lib/validate";
+import { setPrimary } from "../../lib/contactCompanies";
+import { REFERRAL_KINDS } from "../../lib/referralKinds";
 
 export async function GET(req: Request) {
   const user = await requireUser();
@@ -53,7 +55,9 @@ export async function POST(req: Request) {
   if (!body) return Response.json({ error: "Invalid body" }, { status: 400 });
 
   let firstName: string | null, lastName: string | null, title: string | null, linkedinUrl: string | null;
+  let referralKind: string | null;
   try {
+    referralKind = v.enumFromList("referral_kind", body.referral_kind, REFERRAL_KINDS);
     firstName = v.name("first_name", body.first_name);
     lastName = v.name("last_name", body.last_name);
     title = v.title("title", body.title);
@@ -94,11 +98,12 @@ export async function POST(req: Request) {
   try {
     const result = db()
       .prepare(
-        `INSERT INTO contacts (company_id, first_name, last_name, title, email, email_status, phone, linkedin_url, source)
-         VALUES (?,?,?,?,?,?,?,?,?)`
+        `INSERT INTO contacts (company_id, first_name, last_name, title, email, email_status, phone, linkedin_url, source, referral_kind)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
       )
-      .run(companyId, firstName, lastName, title, email, emailStatus, phone, linkedinUrl, source);
+      .run(companyId, firstName, lastName, title, email, emailStatus, phone, linkedinUrl, source, referralKind);
     const id = Number(result.lastInsertRowid);
+    if (companyId) setPrimary(id, companyId);
     audit({ actorUserId: user.id, actorLabel: user.email, action: "contact.create", entity: "contact", entityId: id, detail: { email } });
     return Response.json({ id }, { status: 201 });
   } catch {

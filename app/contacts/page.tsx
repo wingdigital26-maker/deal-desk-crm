@@ -6,7 +6,9 @@ import CsvImport from "../components/crm/CsvImport";
 import ContactsTable, { type ContactRow } from "../components/crm/ContactsTable";
 import { Button, ButtonLink } from "../components/ui/Button";
 import Select from "../components/ui/Select";
-import { EMAIL_CHECK_FILTERS, LABELLED_EMAIL_STATUSES, VERIFIED_EMAIL_STATUSES } from "../components/crm/format";
+import { EMAIL_CHECK_FILTERS } from "../components/crm/format";
+import { contactWhere, filterQuery } from "../lib/listFilters";
+import ExportLinks from "../components/crm/ExportLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -24,46 +26,7 @@ export default async function ContactsPage({
   const requestedPage = Math.max(1, Math.floor(Number(sp.page ?? "1")) || 1);
   const queueTemplateId = sp.queueTemplate ? Number(sp.queueTemplate) : undefined;
 
-  const where: string[] = [];
-  const params: (string | number)[] = [];
-  if (q) {
-    where.push("(contacts.first_name LIKE ? OR contacts.last_name LIKE ? OR contacts.email LIKE ? OR companies.name LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
-  }
-  if (segment) {
-    where.push("companies.segment_id = ?");
-    params.push(segment);
-  }
-  // Each filter matches exactly the rows whose "Email check" label reads the
-  // same (see emailCheck() in format.ts), so a filter never hides a row it names.
-  switch (emailCheck) {
-    case "valid":
-      where.push(
-        `contacts.email IS NOT NULL AND contacts.email_status IN (${VERIFIED_EMAIL_STATUSES.map(() => "?").join(",")}) AND contacts.do_not_contact = 0`
-      );
-      params.push(...VERIFIED_EMAIL_STATUSES);
-      break;
-    case "accept-all":
-    case "no-mx":
-      where.push("contacts.email IS NOT NULL AND contacts.email_status = ? AND contacts.do_not_contact = 0");
-      params.push(emailCheck);
-      break;
-    case "unknown":
-      where.push(
-        `contacts.email IS NOT NULL AND (contacts.email_status IS NULL OR contacts.email_status NOT IN (${LABELLED_EMAIL_STATUSES.map(() => "?").join(",")})) AND contacts.do_not_contact = 0`
-      );
-      params.push(...LABELLED_EMAIL_STATUSES);
-      break;
-    case "no-email":
-      where.push("contacts.email IS NULL AND contacts.do_not_contact = 0");
-      break;
-    case "dnc":
-      where.push("contacts.do_not_contact = 1");
-      break;
-    default:
-      break;
-  }
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const { sql: whereSql, params } = contactWhere({ q, segment, emailCheck });
 
   const total = db()
     .prepare(`SELECT COUNT(*) AS n FROM contacts LEFT JOIN companies ON companies.id = contacts.company_id ${whereSql}`)
@@ -96,6 +59,7 @@ export default async function ContactsPage({
         subtitle={`${total.n} ${total.n === 1 ? "contact" : "contacts"}`}
         actions={
           <>
+            <ExportLinks entity="contacts" query={filterQuery({ q, segment, email_check: emailCheck })} />
             <CsvImport trigger="Import a list" />
             <ButtonLink href="/contacts/new" variant="secondary">
               New contact

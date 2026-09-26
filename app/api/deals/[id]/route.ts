@@ -136,6 +136,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       fields.push("primary_contact_id = ?");
       values.push(pcid);
     }
+    // P3: who sourced the deal. Credit on the Referral sources screen follows this column.
+    if ("referral_contact_id" in body) {
+      const rid =
+        body.referral_contact_id != null && body.referral_contact_id !== ""
+          ? v.integerRange("referral_contact_id", body.referral_contact_id, 1, Number.MAX_SAFE_INTEGER)
+          : null;
+      if (rid != null && !db().prepare("SELECT 1 FROM contacts WHERE id = ?").get(rid)) {
+        return Response.json({ error: "Unknown contact", field: "referral_contact_id" }, { status: 400 });
+      }
+      fields.push("referral_contact_id = ?");
+      values.push(rid);
+      detail.referral_contact_id = rid;
+      detail.from_referral_contact_id = (existing as { referral_contact_id?: number | null }).referral_contact_id ?? null;
+    }
   } catch (err) {
     const res = v.validationErrorResponse(err);
     if (res) return res;

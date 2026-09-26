@@ -5,6 +5,7 @@
 // in the suppression list as contactable (it is stored do_not_contact=1
 // instead of being silently dropped, so the record and its history exist).
 import { db, audit } from "../db";
+import { syncFromContact } from "../contactCompanies";
 import type { ApolloOrganization, ApolloPerson } from "./client";
 
 type CompanyRow = {
@@ -181,12 +182,13 @@ export function importApolloSelection(sel: ImportSelection): ImportResult {
           fields.push("updated_at = datetime('now')");
           values.push(existing.id);
           db().prepare(`UPDATE contacts SET ${fields.join(", ")} WHERE id = ?`).run(...(values as (string | number | null)[]));
+          syncFromContact(existing.id);
         }
       }
       continue;
     }
 
-    db()
+    const insertedContact = db()
       .prepare(
         `INSERT INTO contacts (company_id, first_name, last_name, title, email, email_status, linkedin_url, source, apollo_id, do_not_contact)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'apollo', ?, ?)`
@@ -202,6 +204,7 @@ export function importApolloSelection(sel: ImportSelection): ImportResult {
         person.id,
         suppressed ? 1 : 0
       );
+    if (companyId) syncFromContact(Number(insertedContact.lastInsertRowid));
     out.contactsCreated += 1;
   }
 

@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 // Body: { rows: Record<string,string>[], mapping: Record<targetField, csvHeader> }
 // Target fields: first_name, last_name, title, email, phone, linkedin_url, company_name
 import { db, audit } from "../../../lib/db";
+import { syncFromContact } from "../../../lib/contactCompanies";
 import { requireUser } from "../../../lib/session";
 import { isValidEmail } from "../../../lib/csv";
 import { normalizeDomain } from "../../companies/route";
@@ -90,13 +91,15 @@ export async function POST(req: Request) {
       const existingContact = findContactByEmail.get(email) as { id: number } | undefined;
       if (existingContact) {
         updateContact.run(firstName, lastName, title, phone, linkedinUrl, companyId, existingContact.id);
+        if (companyId) syncFromContact(existingContact.id);
         updated++;
         continue;
       }
     }
 
     try {
-      insertContact.run(companyId, firstName, lastName, title, email, phone, linkedinUrl);
+      const inserted = insertContact.run(companyId, firstName, lastName, title, email, phone, linkedinUrl);
+      if (companyId) syncFromContact(Number(inserted.lastInsertRowid));
       created++;
     } catch {
       // Most likely a race on the email unique index.

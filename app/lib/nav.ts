@@ -26,6 +26,7 @@ export const NAV: NavItem[] = [
   { href: "/companies", label: "Companies", group: "Relationships" },
   { href: "/contacts", label: "Contacts", group: "Relationships" },
   { href: "/sourcing", label: "Sourcing", group: "Relationships" },
+  { href: "/contacts/referrals", label: "Referral sources", group: "Relationships", parent: "/contacts" },
   { href: "/outbound/queue", label: "Queue", group: "Work", parent: "/outbound" },
   { href: "/outbound/replies", label: "Replies", group: "Work", parent: "/outbound" },
   { href: "/outbound/templates", label: "Templates", group: "Work", parent: "/outbound" },

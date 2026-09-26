@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PageHeader from "../crm/PageHeader";
+import ExportLinks from "../crm/ExportLinks";
 import EmptyState from "../crm/EmptyState";
 import { Button } from "../ui/Button";
 import StatusLabel from "../ui/StatusLabel";
@@ -116,7 +117,7 @@ export default function TaskList() {
 
   return (
     <div>
-      <PageHeader title="Tasks" subtitle="Everything open, grouped by when it is due." />
+      <PageHeader title="Tasks" subtitle="Everything open, grouped by when it is due." actions={<ExportLinks entity="tasks" />} />
 
       <div className="card mb-6 space-y-3 p-4">
         <div className="flex flex-col items-end gap-2 sm:flex-row">

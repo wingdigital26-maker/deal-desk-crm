@@ -159,6 +159,19 @@ BEGIN SELECT RAISE(ABORT, 'documents are never deleted'); END;
 CREATE TRIGGER IF NOT EXISTS documents_immutable_file BEFORE UPDATE OF deal_id, deal_buyer_id, kind, doc_key, version, filename, mime, size, sha256, uploaded_by, created_at ON documents
 BEGIN SELECT RAISE(ABORT, 'a stored document version cannot be rewritten'); END;
 -- END P4 DOCUMENTS.
+-- P3 RELATIONSHIPS. A contact can hold roles at many companies over time
+-- (a CPA who also sits on an owner's board). contacts.company_id stays the
+-- current primary company; the link marked is_primary always matches it.
+CREATE TABLE IF NOT EXISTS contact_companies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  role TEXT, start_date TEXT, end_date TEXT,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (contact_id, company_id)
+);
+CREATE INDEX IF NOT EXISTS contact_companies_by_company ON contact_companies(company_id);
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL, due TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -367,6 +380,12 @@ const COLUMN_MIGRATIONS: [table: string, column: string, ddl: string][] = [
   ["contacts", "touch_every_days", "INTEGER"],
   // ---- P5 BANK / FIG: 1 turns on the regulatory approval tracker for a deal ----
   ["deals", "fig_track", "INTEGER NOT NULL DEFAULT 0"],
+  // P3 relationships: referral sources are contacts with a kind; a deal credits one.
+  // referral_kind: cpa | attorney | wealth-manager | lender | banker | other (null = not a source).
+  ["contacts", "referral_kind", "TEXT"],
+  // Plain INTEGER (ALTER TABLE cannot add a real FK everywhere): the contact
+  // DELETE route clears it, and every read LEFT JOINs contacts.
+  ["deals", "referral_contact_id", "INTEGER"],
 ];
 
 function migrate(d: DatabaseSync) {
@@ -375,6 +394,19 @@ function migrate(d: DatabaseSync) {
     if (!cols.some((c) => c.name === column)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
   }
   d.exec("CREATE UNIQUE INDEX IF NOT EXISTS outbound_unsub_token ON outbound_messages(unsubscribe_token) WHERE unsubscribe_token IS NOT NULL");
+  // P3: every contacts.company_id is also a primary link in contact_companies.
+  // INSERT OR IGNORE on the UNIQUE pair makes this safe to run on every open;
+  // the second statement keeps is_primary in step with contacts.company_id
+  // (touching only rows that disagree).
+  d.exec("CREATE INDEX IF NOT EXISTS deals_by_referral ON deals(referral_contact_id)");
+  d.exec(
+    `INSERT OR IGNORE INTO contact_companies (contact_id, company_id, is_primary)
+     SELECT id, company_id, 1 FROM contacts WHERE company_id IS NOT NULL`
+  );
+  d.exec(
+    `UPDATE contact_companies SET is_primary = 1 - is_primary
+     WHERE is_primary != (CASE WHEN company_id = (SELECT c.company_id FROM contacts c WHERE c.id = contact_companies.contact_id) THEN 1 ELSE 0 END)`
+  );
 }
 
 let _db: DatabaseSync | null = null;

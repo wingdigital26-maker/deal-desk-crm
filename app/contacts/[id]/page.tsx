@@ -12,6 +12,9 @@ import { getCompanyProfile, contactOwnerView } from "../../lib/profile";
 import { OwnerCard, BusinessCard, WhyNowCard, FitLine, HintsCard } from "../../components/profile/ProfileCards";
 import RefreshProfileButton from "../../components/profile/RefreshProfileButton";
 import { isDemo } from "../../lib/demo-policy";
+import ContactCompanies from "../../components/crm/ContactCompanies";
+import ReferralKindSelect from "../../components/crm/ReferralKindSelect";
+import { linksForContact } from "../../lib/contactCompanies";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +31,7 @@ type ContactRow = {
   do_not_contact: number;
   source: string;
   touch_every_days: number | null;
+  referral_kind: string | null;
 };
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -50,6 +54,11 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
        WHERE activities.contact_id = ? ORDER BY activities.created_at DESC, activities.id DESC`
     )
     .all(contactId) as Activity[];
+
+  const links = linksForContact(contactId);
+  const sourced = db()
+    .prepare("SELECT id, title, stage FROM deals WHERE referral_contact_id = ? ORDER BY updated_at DESC, id DESC")
+    .all(contactId) as { id: number; title: string; stage: string }[];
 
   const displayName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email || "Contact";
   const profile = company ? getCompanyProfile(company.id) : null;
@@ -90,6 +99,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
             </>
           )}
           <ContactDetail contact={contact} companyName={company?.name ?? null} companies={companies} cadence={contact.touch_every_days} />
+          <ContactCompanies contactId={contactId} links={links} />
           <Panel title="Timeline">
             <Timeline activities={activities} postUrl="/api/activities" extra={{ contact_id: contactId }} />
           </Panel>
@@ -98,6 +108,26 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         <div className="min-w-0 space-y-6">
           {profile && <WhyNowCard profile={profile} />}
           {profile && <HintsCard profile={profile} />}
+          <Panel title="Referral credit">
+            <ReferralKindSelect contactId={contactId} value={contact.referral_kind} />
+            {sourced.length === 0 ? (
+              <p className="mt-3 text-sm text-[var(--ink-faint)]">No deals credited to this person yet.</p>
+            ) : (
+              <div className="mt-4 border-t border-[var(--rule)] pt-3">
+                <div className="label mb-1 text-[var(--ink-soft)]">Deals sourced ({sourced.length})</div>
+                <ul className="space-y-1">
+                  {sourced.map((d) => (
+                    <li key={d.id} className="text-sm">
+                      <Link href={`/pipeline/${d.id}`} className="text-[var(--ink)] hover:text-[var(--accent)]">
+                        {d.title}
+                      </Link>
+                      <span className="text-[var(--ink-soft)]"> · {d.stage}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Panel>
           <Panel title="Company">
             {company ? (
               <div>

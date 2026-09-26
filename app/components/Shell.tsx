@@ -126,8 +126,8 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
         <header className="sticky top-0 z-30 border-b border-[var(--rule)] bg-[var(--paper)]/90 backdrop-blur">
           <div className="mx-auto flex min-h-[64px] w-full max-w-[1240px] items-center gap-3 px-4 md:px-8">
           <span className="display inline-flex items-center gap-2 text-[18px] md:hidden"><Mark size={22} />{firm.productName}</span>
-          <form action="/companies" method="get" role="search" className="hidden max-w-[420px] flex-1 md:block">
-            <label htmlFor="global-search" className="sr-only">Search companies</label>
+          <form action="/search" method="get" role="search" className="hidden max-w-[420px] flex-1 md:block">
+            <label htmlFor="global-search" className="sr-only">Search companies, people and deals</label>
             <div className="flex h-11 items-center gap-2 rounded-full bg-[var(--surface)] px-4 shadow-[var(--shadow-card)]">
               <SearchIcon className="h-4 w-4 shrink-0 text-[var(--ink-faint)]" />
               <input
@@ -135,7 +135,7 @@ export default function Shell({ user, demo = false, children }: { user: SessionU
                 name="q"
                 type="search"
                 autoComplete="off"
-                placeholder="Search companies"
+                placeholder="Search companies, people and deals"
                 className="h-full w-full bg-transparent text-[15px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
               />
             </div>

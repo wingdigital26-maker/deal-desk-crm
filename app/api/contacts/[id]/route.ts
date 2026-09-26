@@ -3,6 +3,8 @@ import { db, audit } from "../../../lib/db";
 import { requireUser } from "../../../lib/session";
 import { isValidEmail } from "../../../lib/csv";
 import * as v from "../../../lib/validate";
+import { setPrimary } from "../../../lib/contactCompanies";
+import { REFERRAL_KINDS } from "../../../lib/referralKinds";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -73,6 +75,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if ("touch_every_days" in body) {
       fields.touch_every_days = v.integerRange("touch_every_days", body.touch_every_days, 1, 730);
     }
+    if ("referral_kind" in body) fields.referral_kind = v.enumFromList("referral_kind", body.referral_kind, REFERRAL_KINDS);
     if ("company_id" in body) {
       fields.company_id =
         body.company_id != null && body.company_id !== ""
@@ -93,6 +96,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   db()
     .prepare(`UPDATE contacts SET ${setSql}, updated_at = datetime('now') WHERE id = ?`)
     .run(...Object.values(fields), contactId);
+  // Keep the contact's company links in step: the new company becomes the primary link.
+  if ("company_id" in fields) setPrimary(contactId, fields.company_id as number | null);
 
   audit({ actorUserId: user.id, actorLabel: user.email, action: "contact.update", entity: "contact", entityId: contactId, detail: fields });
   return Response.json({ ok: true });
@@ -123,6 +128,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     );
   }
 
+  // deals.referral_contact_id is a plain column (no FK action): clear the credit first.
+  db().prepare("UPDATE deals SET referral_contact_id = NULL WHERE referral_contact_id = ?").run(contactId);
   db().prepare("DELETE FROM contacts WHERE id = ?").run(contactId);
   audit({ actorUserId: user.id, actorLabel: user.email, action: "contact.delete", entity: "contact", entityId: contactId, detail: { email: existing.email } });
   return Response.json({ ok: true });

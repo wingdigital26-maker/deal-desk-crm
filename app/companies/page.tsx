@@ -6,6 +6,8 @@ import EmptyState from "../components/crm/EmptyState";
 import { titleCaseCompanyName, sourceLabel } from "../components/crm/format";
 import { Button, ButtonLink } from "../components/ui/Button";
 import Select from "../components/ui/Select";
+import { companyWhere, filterQuery } from "../lib/listFilters";
+import ExportLinks from "../components/crm/ExportLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -36,21 +38,7 @@ export default async function CompaniesPage({
   const sort = sp.sort === "signal_score" ? "signal_score" : sp.sort === "name" ? "name" : "updated_at";
   const requestedPage = Math.max(1, Math.floor(Number(sp.page ?? "1")) || 1);
 
-  const where: string[] = [];
-  const params: (string | number)[] = [];
-  if (q) {
-    where.push("(name LIKE ? OR domain LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`);
-  }
-  if (segment) {
-    where.push("segment_id = ?");
-    params.push(segment);
-  }
-  if (source) {
-    where.push("source = ?");
-    params.push(source);
-  }
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const { sql: whereSql, params } = companyWhere({ q, segment, source });
   // id is the tie-breaker: thousands of registry rows share one updated_at,
   // and without it page 2 can repeat or skip rows from page 1.
   const orderSql =
@@ -100,7 +88,12 @@ export default async function CompaniesPage({
       <PageHeader
         title="Companies"
         subtitle={`${total.n} ${total.n === 1 ? "company" : "companies"} in the pipeline universe`}
-        actions={<ButtonLink href="/companies/new">New company</ButtonLink>}
+        actions={
+          <>
+            <ExportLinks entity="companies" query={filterQuery({ q, segment, source })} />
+            <ButtonLink href="/companies/new">New company</ButtonLink>
+          </>
+        }
       />
 
       <form className="mb-4 flex flex-wrap items-end gap-2" method="get">

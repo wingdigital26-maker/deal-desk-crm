@@ -20,6 +20,7 @@ export type Deal = {
   enterprise_value?: number | null;
   expected_close?: string | null;
   probability?: number | null;
+  referral_contact_id?: number | null;
 };
 
 export type TeamMember = { user_id: number; name: string; role: string };

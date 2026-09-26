@@ -17,6 +17,9 @@ import RefreshProfileButton from "../../components/profile/RefreshProfileButton"
 import { isDemo } from "../../lib/demo-policy";
 import BuyerPanel, { type BuyerProfile } from "../../components/buyers/BuyerPanel";
 import { buyerHistory } from "../../lib/buyers";
+import { otherContactsForCompany } from "../../lib/contactCompanies";
+import { isFormer, linkSpan } from "../../components/crm/linkFormat";
+import { displayName } from "../../components/crm/format";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +62,8 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
        WHERE contacts.company_id = ? ORDER BY contacts.updated_at DESC`
     )
     .all(companyId) as ContactRow[];
+  // People tied here through another role (a CPA on the board, a former CFO).
+  const linked = otherContactsForCompany(companyId);
   const deals = db()
     .prepare("SELECT id, title, stage, next_step, next_step_due FROM deals WHERE company_id = ? ORDER BY updated_at DESC")
     .all(companyId) as DealRow[];
@@ -102,14 +107,35 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
           <CompanyDetail company={company} segments={firm.segments} />
 
           <Panel title="Contacts">
-            {contacts.length === 0 ? (
+            {contacts.length === 0 && linked.length === 0 ? (
               <EmptyState
                 title="No contacts yet"
                 detail="Add a contact and link it to this company."
                 action={<ButtonLink href={`/contacts/new?companyId=${companyId}`}>Add a contact</ButtonLink>}
               />
             ) : (
-              <ContactsTable rows={contacts} />
+              <>
+                {contacts.length > 0 && <ContactsTable rows={contacts} />}
+                {linked.length > 0 && (
+                  <div className={contacts.length > 0 ? "mt-5 border-t border-[var(--rule)] pt-4" : ""}>
+                    <div className="label mb-2 text-[var(--ink-soft)]">Also linked here</div>
+                    <ul className="divide-y divide-[var(--rule)]">
+                      {linked.map((p) => (
+                        <li key={p.contact_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 first:pt-0 last:pb-0">
+                          <Link href={`/contacts/${p.contact_id}`} className="text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)]">
+                            {displayName(p)}
+                          </Link>
+                          <span className="text-sm text-[var(--ink-soft)]">
+                            {[p.role ?? "No role on file", linkSpan(p.start_date, p.end_date), isFormer(p.end_date) ? "Former" : ""]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
             )}
           </Panel>
 

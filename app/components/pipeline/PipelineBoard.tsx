@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../crm/PageHeader";
+import ExportLinks from "../crm/ExportLinks";
 import EmptyState from "../crm/EmptyState";
 import DataTable, { type Column } from "../crm/DataTable";
 import { Button } from "../ui/Button";
@@ -201,6 +202,7 @@ export default function PipelineBoard({ stages, isOwner = false, cfg }: { stages
             List
           </button>
         </div>
+        {view === "list" && <ExportLinks entity="deals" />}
         {view === "board" && (
           <label className="text-sm md:hidden">
             <span className="sr-only">Stage</span>
