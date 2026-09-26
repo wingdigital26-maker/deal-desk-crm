@@ -6,6 +6,10 @@ import { ButtonLink } from "../../components/ui/Button";
 import DealDetail from "../../components/pipeline/DealDetail";
 import BuyerLog from "../../components/buyers/BuyerLog";
 import { funnel, listBuyers, reached } from "../../lib/buyers";
+import RegulatoryPanel from "../../components/regulatory/RegulatoryPanel";
+import { listFilings, listVotes } from "../../lib/regulatoryStore";
+import DealDocuments from "../../components/documents/DealDocuments";
+import { latestNdaByBuyer, listDocuments } from "../../lib/documents";
 import type { Deal, Task, TeamMember, UserOption } from "../../components/pipeline/types";
 import type { Activity } from "../../components/crm/Timeline";
 
@@ -45,6 +49,10 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
     .all(id) as TeamMember[];
   const users = db().prepare("SELECT id, name FROM users WHERE disabled = 0 ORDER BY name").all() as UserOption[];
   const buyers = listBuyers(id);
+  const figTrack = (deal as Deal & { fig_track?: number }).fig_track ?? 0;
+  const regulatory = { fig_track: figTrack, filings: listFilings(id), votes: listVotes(id) };
+  const documents = listDocuments(id);
+  const ndaDocs = latestNdaByBuyer(id);
   const cfg = { stageProbability: firm.stageProbability, closedStages: firm.closedStages };
 
   return (
@@ -56,7 +64,13 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       </div>
       <DealDetail deal={deal} tasks={tasks} timeline={timeline} stages={firm.dealStages} isOwner={user.role === "owner"} cfg={cfg} team={team} users={users} />
       <div className="mt-6">
-        <BuyerLog dealId={deal.id} initial={{ items: buyers, funnel: funnel(buyers), reached: reached(buyers) }} />
+        <BuyerLog dealId={deal.id} initial={{ items: buyers, funnel: funnel(buyers), reached: reached(buyers) }} ndaDocs={ndaDocs} />
+      </div>
+      <div className="mt-6">
+        <DealDocuments dealId={deal.id} initial={documents} />
+      </div>
+      <div className="mt-6">
+        <RegulatoryPanel dealId={deal.id} initial={regulatory} />
       </div>
     </div>
   );

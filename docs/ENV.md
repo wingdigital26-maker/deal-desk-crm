@@ -31,6 +31,23 @@ the repo; they must be set on whatever machine or host runs the app.
   directory. That default is fine as long as data/ is the mounted,
   persistent volume in production; see docs/DEPLOY.md Option A.
 
+## HARNESS_FILES_DIR
+
+- What it does: the folder where uploaded deal documents (engagement
+  letters, NDAs, CIMs, LOIs, financials) are stored. Read only in
+  app/lib/files.ts (`filesDir()`). Files are stored once per content hash
+  at `<dir>/<first two hex chars>/<sha256>` and are never overwritten or
+  deleted; the documents table in the database points at them.
+- Secret: no, but the folder holds the firm's most sensitive material
+  (often material non-public information). It must sit on the same
+  persistent volume as the database and be included in every backup,
+  together with the database: a backup of one without the other cannot
+  recreate the originals the books-and-records rules require.
+- Safe example: `/app/data/files` (inside the Docker container) or
+  `data/files` for local development.
+- If missing: defaults to `data/files` under the app's working directory,
+  which is fine as long as data/ is the mounted, persistent volume.
+
 ## OUTBOUND_SEND_ENABLED
 
 - What it does: the final gate before any outbound email actually sends.

@@ -12,6 +12,7 @@ import { relationshipsDue } from "./lib/cadence";
 import { LogTouchButton } from "./components/crm/TouchCadence";
 import { cadenceLabel } from "./lib/cadenceLabels";
 import { displayName } from "./components/crm/format";
+import { upcomingRegulatoryDates, type Filing, type ShareholderVote } from "./lib/regulatory";
 import { ActivityIcon, ColumnsIcon, InboxIcon, TriangleAlertIcon } from "./components/ui/icons";
 
 export const metadata = { title: `Today | ${firm.productName}` };
@@ -210,6 +211,18 @@ export default async function TodayPage() {
   const perDay = new Map<string, number>();
   for (const s of schedule) perDay.set(s.due, (perDay.get(s.due) ?? 0) + 1);
 
+  // P5: saved regulatory and shareholder-vote dates in the next 30 days on bank / FIG deals.
+  const figDeals = db()
+    .prepare(`SELECT d.id, c.name AS company_name FROM deals d JOIN companies c ON c.id = d.company_id WHERE d.fig_track = 1`)
+    .all() as { id: number; company_name: string }[];
+  const regDates = figDeals
+    .flatMap((d) => {
+      const filings = db().prepare("SELECT * FROM deal_regulatory_filings WHERE deal_id = ?").all(d.id) as Filing[];
+      const votes = db().prepare("SELECT * FROM deal_shareholder_votes WHERE deal_id = ?").all(d.id) as ShareholderVote[];
+      return upcomingRegulatoryDates(filings, votes, today, 30).map((r) => ({ ...r, dealId: d.id, company: d.company_name }));
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = user.name.split(" ")[0];
@@ -363,6 +376,24 @@ export default async function TodayPage() {
         </section>
 
         <div className="flex min-w-0 flex-col gap-6">
+          {regDates.length > 0 && (
+            <Panel title="Regulatory dates">
+              <ul className="space-y-3">
+                {regDates.slice(0, 6).map((r) => (
+                  <li key={`${r.dealId}-${r.kind}-${r.id}-${r.label}`} className="flex min-w-0 items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <Link href={`/pipeline/${r.dealId}`} className="block truncate text-[var(--ink)] hover:underline" title={r.company}>
+                        {r.company}
+                      </Link>
+                      <div className="mt-0.5 truncate text-xs text-[var(--ink-soft)]">{r.label}</div>
+                    </div>
+                    <span className="numeric shrink-0 text-[var(--ink-soft)]">{r.date === today ? "Today" : formatDate(r.date)}</span>
+                  </li>
+                ))}
+              </ul>
+              {regDates.length > 6 && <p className="mt-3 text-xs text-[var(--ink-soft)]">{regDates.length - 6} more in the next 30 days.</p>}
+            </Panel>
+          )}
           <Panel title="Relationships due for a touch" actions={<ButtonLink href="/contacts" variant="quiet" size="sm">Contacts</ButtonLink>}>
             {dueRelationships.length === 0 ? (
               <p className="text-sm text-[var(--ink-soft)]">

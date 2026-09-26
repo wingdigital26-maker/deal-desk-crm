@@ -130,6 +130,35 @@ CREATE TABLE IF NOT EXISTS deal_buyer_revisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS deal_buyer_revisions_by_buyer ON deal_buyer_revisions(deal_buyer_id);
+-- P4 DOCUMENTS. Versioned, never overwritten, never deleted (17a-4: a complete
+-- time-stamped trail that can recreate originals). doc_key groups the versions
+-- of one logical document; a new upload to a doc_key is version N+1. Bytes live
+-- on disk content-addressed by sha256 (app/lib/files.ts). "Archive" only hides.
+CREATE TABLE IF NOT EXISTS documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE RESTRICT,
+  deal_buyer_id INTEGER REFERENCES deal_buyers(id) ON DELETE RESTRICT,
+  kind TEXT NOT NULL CHECK (kind IN ('engagement_letter','nda','teaser','cim','loi','financials','other')),
+  title TEXT NOT NULL,
+  doc_key TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  filename TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  sha256 TEXT NOT NULL,
+  note TEXT,
+  uploaded_by INTEGER REFERENCES users(id),
+  archived_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (doc_key, version)
+);
+CREATE INDEX IF NOT EXISTS documents_by_deal ON documents(deal_id, doc_key);
+CREATE INDEX IF NOT EXISTS documents_by_buyer ON documents(deal_buyer_id);
+CREATE TRIGGER IF NOT EXISTS documents_no_delete BEFORE DELETE ON documents
+BEGIN SELECT RAISE(ABORT, 'documents are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS documents_immutable_file BEFORE UPDATE OF deal_id, deal_buyer_id, kind, doc_key, version, filename, mime, size, sha256, uploaded_by, created_at ON documents
+BEGIN SELECT RAISE(ABORT, 'a stored document version cannot be rewritten'); END;
+-- END P4 DOCUMENTS.
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL, due TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -273,6 +302,39 @@ CREATE TABLE IF NOT EXISTS captured_items (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(provider, external_id, contact_id)
 );
+-- ---- P5 BANK / FIG REGULATORY TRACK ----
+-- Working trackers for a bank or credit union deal (turned on per deal by
+-- deals.fig_track). Dates are YYYY-MM-DD. Not books and records: rows may be
+-- deleted, and every add, edit and delete is audited with the full old row.
+CREATE TABLE IF NOT EXISTS deal_regulatory_filings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  regulator TEXT NOT NULL CHECK (regulator IN ('FDIC','OCC','FED','STATE','NCUA')),
+  agency_label TEXT,
+  filed_at TEXT, accepted_complete_at TEXT, public_notice_at TEXT, comment_end_at TEXT,
+  approval_at TEXT,
+  doj_concurrence INTEGER NOT NULL DEFAULT 0,
+  consummation_eligible_at TEXT,
+  status TEXT NOT NULL DEFAULT 'preparing' CHECK (status IN ('preparing','filed','accepted','approved','withdrawn','denied')),
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (deal_id, regulator, agency_label)
+);
+CREATE INDEX IF NOT EXISTS deal_regulatory_filings_by_deal ON deal_regulatory_filings(deal_id);
+CREATE TABLE IF NOT EXISTS deal_shareholder_votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  party TEXT NOT NULL CHECK (party IN ('target','acquirer')),
+  record_date TEXT, notice_mailed_at TEXT, meeting_at TEXT,
+  result TEXT DEFAULT 'pending' CHECK (result IN ('pending','approved','rejected')),
+  votes_for_pct REAL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (deal_id, party)
+);
+-- ---- end P5 ----
 `;
 
 // Additive, idempotent column migrations for databases created by an earlier schema.
@@ -303,6 +365,8 @@ const COLUMN_MIGRATIONS: [table: string, column: string, ddl: string][] = [
   ["deals", "probability", "INTEGER"],
   // Touch cadence: remind on Today when a relationship goes quiet this long.
   ["contacts", "touch_every_days", "INTEGER"],
+  // ---- P5 BANK / FIG: 1 turns on the regulatory approval tracker for a deal ----
+  ["deals", "fig_track", "INTEGER NOT NULL DEFAULT 0"],
 ];
 
 function migrate(d: DatabaseSync) {

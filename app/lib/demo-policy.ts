@@ -20,5 +20,7 @@ export function demoBlocks(pathname: string, method: string): boolean {
   if (BLOCKED.some((re) => re.test(pathname))) return true;
   // Creating or editing users means passwords; keep the user list read-only.
   if (/^\/api\/users(\/|$)/.test(pathname) && method !== "GET") return true;
+  // No file uploads from the public: demo documents are sample rows only.
+  if (/^\/api\/documents\/?$/.test(pathname) && method === "POST") return true;
   return false;
 }

@@ -120,6 +120,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       values.push(val);
       detail.expected_close = val;
     }
+    // P5: 1 turns on the bank / credit union regulatory approval tracker.
+    if ("fig_track" in body) {
+      const raw = body.fig_track;
+      const val = raw === true ? 1 : raw === false ? 0 : v.integerRange("fig_track", raw, 0, 1, { required: true });
+      fields.push("fig_track = ?");
+      values.push(val);
+      detail.fig_track = val;
+    }
     if ("primary_contact_id" in body) {
       const pcid =
         body.primary_contact_id != null && body.primary_contact_id !== ""
@@ -176,6 +184,19 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   const existing = db().prepare("SELECT id FROM deals WHERE id = ?").get(id);
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
 
+  // Buyer history and documents are records (17a-4) and RESTRICT the delete.
+  // Refuse cleanly instead of letting the foreign key surface as a 500.
+  const held = db()
+    .prepare(
+      "SELECT (SELECT COUNT(*) FROM deal_buyers WHERE deal_id = ?) AS buyers, (SELECT COUNT(*) FROM documents WHERE deal_id = ?) AS docs"
+    )
+    .get(id, id) as { buyers: number; docs: number };
+  if (held.buyers || held.docs) {
+    return Response.json(
+      { error: "This deal has a buyer log or documents on record, which must be kept. Move it to Passed instead of deleting it." },
+      { status: 409 }
+    );
+  }
   db().prepare("DELETE FROM deals WHERE id = ?").run(id);
 
   audit({ actorUserId: user.id, action: "deal.delete", entity: "deal", entityId: id });

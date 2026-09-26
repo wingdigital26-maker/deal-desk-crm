@@ -40,7 +40,17 @@ function lastMove(b: BuyerRow): string | null {
 const shortDate = (s: string | null) =>
   s ? new Date(s.replace(" ", "T") + (s.includes("T") ? "" : "Z")).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 
-export default function BuyerLog({ dealId, initial }: { dealId: number; initial: Data }) {
+// P4: deal_buyer_id -> id of the latest NDA version on file (from the page, no extra fetch).
+function NdaOnFile({ docId }: { docId?: number }) {
+  if (!docId) return null;
+  return (
+    <a href={`/api/documents/${docId}/download`} className="inline-flex min-h-[44px] items-center text-[12px] font-semibold text-[var(--accent-deep)] hover:underline">
+      NDA on file
+    </a>
+  );
+}
+
+export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: number; initial: Data; ndaDocs?: Record<number, number> }) {
   const [data, setData] = useState<Data>(initial);
   const [view, setView] = useState<View>("buyers");
   const [adding, setAdding] = useState(false);
@@ -244,6 +254,7 @@ export default function BuyerLog({ dealId, initial }: { dealId: number; initial:
                             {b.buyer_name}
                           </Link>
                           {b.buyer_type && <div className="text-[12px] text-[var(--ink-soft)]">{BUYER_TYPE_LABELS[b.buyer_type as BuyerType] ?? b.buyer_type}</div>}
+                          <NdaOnFile docId={ndaDocs[b.id]} />
                         </td>
                         <td className="py-2 pr-3 text-[var(--ink-soft)]">
                           {b.lead_contact_id ? (
@@ -306,6 +317,7 @@ export default function BuyerLog({ dealId, initial }: { dealId: number; initial:
                             {stageText(b)}
                             {hasTerms(b) && ioiText(b) ? ` · ${ioiText(b)}` : ""}
                           </div>
+                          <NdaOnFile docId={ndaDocs[b.id]} />
                         </div>
                         <input type="checkbox" aria-label={`Select ${b.buyer_name}`} checked={selected.has(b.id)} onChange={() => toggle(b.id)} className="mt-1 h-5 w-5" />
                       </div>

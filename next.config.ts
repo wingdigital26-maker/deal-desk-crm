@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   // every server function so app/lib/demo.ts can copy it to the temp dir.
   outputFileTracingIncludes: { "/**": ["./demo/demo.db"] },
   devIndicators: false, // the dev-only corner chip overlaps the rail and pollutes review screenshots
+  // proxy.ts buffers request bodies and cuts them at 10 MB by default; document
+  // uploads are allowed up to 25 MB (app/lib/documentKinds.ts).
+  experimental: { proxyClientMaxBodySize: "26mb" },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
