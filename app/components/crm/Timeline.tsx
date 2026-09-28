@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass } from "../ui/Button";
 import { ActivityIcon } from "../ui/icons";
+import VoiceNoteButton from "./VoiceNoteButton";
 
 export type Activity = {
   id: number;
@@ -99,6 +100,7 @@ export default function Timeline({
           rows={2}
           className="min-h-[44px] w-full flex-1 rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--ink)] outline-none focus-visible:border-[var(--accent)]"
         />
+        <VoiceNoteButton value={body} onChange={setBody} />
         <button
           type="submit"
           disabled={busy || !body.trim()}

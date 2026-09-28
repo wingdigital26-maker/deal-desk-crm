@@ -13,7 +13,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ entity: string 
   if (!isExportEntity(entity)) return Response.json({ error: "Not found" }, { status: 404 });
   const url = new URL(req.url);
   const format = parseFormat(url) ?? "csv";
-  const { filename, sheet } = buildExport(entity, (k) => url.searchParams.get(k));
+  const { filename, sheet } = buildExport(entity, (k) => url.searchParams.get(k), user);
   const filters = Object.fromEntries([...url.searchParams].filter(([k]) => k !== "format"));
   audit({
     actorUserId: user.id,

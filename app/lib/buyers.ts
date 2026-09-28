@@ -6,6 +6,8 @@
 //   - buyers are soft-removed, never deleted
 import { db, audit } from "./db";
 import * as v from "./validate";
+import { visibleDealIds, type AccessUser } from "./dealAccess";
+import { buyerConflicts, recordConflicts, type ConflictWarning } from "./conflicts";
 import { BUYER_STAGES, FORWARD_STAGES, isBuyerStage, milestoneColumn, stageRank, type BuyerStage } from "./buyerStages";
 
 export type BuyerRow = {
@@ -32,6 +34,9 @@ export type BuyerRow = {
   exclusivity_days: number | null;
   structure_notes: string | null;
   notes: string | null;
+  /** Internal follow-up with this buyer (never on the seller report). */
+  next_step: string | null;
+  next_step_due: string | null;
   updated_at: string;
   created_at: string;
 } & Record<`${BuyerStage}_at`, string | null>;
@@ -87,6 +92,8 @@ export function reached(rows: BuyerRow[]): Record<string, number> {
 
 function tx<T>(fn: () => T): T {
   const d = db();
+  // Joins a caller's open transaction (the 4Degrees import runs addBuyers inside its own).
+  if (d.isTransaction) return fn();
   d.exec("BEGIN");
   try {
     const out = fn();
@@ -153,6 +160,33 @@ export function addBuyers(dealId: number, items: { buyer_company_id: number; lea
     detail: { count: result.created.length, restored: result.restored.length, skipped: result.skipped.length, buyer_company_ids: items.map((i) => i.buyer_company_id) },
   });
   return result;
+}
+
+/**
+ * The add path the API uses: addBuyers plus the conflict check
+ * (app/lib/conflicts.ts) on every buyer that actually landed on the log.
+ * Conflicts are warnings for the banker and audit rows for compliance; they never block.
+ */
+export function addBuyersChecked(
+  dealId: number,
+  items: { buyer_company_id: number; lead_contact_id?: number | null }[],
+  user: AccessUser
+): AddResult & { warnings: ConflictWarning[] } {
+  const result = addBuyers(dealId, items, user.id);
+  const landed = buyerCompanyIds([...result.created, ...result.restored]);
+  const warnings = buyerConflicts(dealId, landed, user);
+  recordConflicts(dealId, landed, user.id);
+  return { ...result, warnings };
+}
+
+/** The buyer companies behind a set of deal_buyers ids. */
+export function buyerCompanyIds(dealBuyerIds: number[]): number[] {
+  if (!dealBuyerIds.length) return [];
+  return (
+    db()
+      .prepare(`SELECT DISTINCT buyer_company_id FROM deal_buyers WHERE id IN (${dealBuyerIds.map(() => "?").join(",")})`)
+      .all(...dealBuyerIds) as { buyer_company_id: number }[]
+  ).map((r) => r.buyer_company_id);
 }
 
 /** One stage move inside the caller's transaction. Returns false when nothing changed. */
@@ -227,6 +261,8 @@ export const TERM_FIELDS = [
   "structure_notes",
   "notes",
   "decline_reason",
+  "next_step",
+  "next_step_due",
 ] as const;
 export type TermField = (typeof TERM_FIELDS)[number];
 
@@ -282,6 +318,7 @@ export type BuyerHistoryRow = {
   deal_id: number;
   deal_title: string;
   seller_name: string;
+  code_name: string | null;
   deal_stage: string;
   stage: BuyerStage;
   declined_from_stage: string | null;
@@ -292,17 +329,21 @@ export type BuyerHistoryRow = {
   updated_at: string;
 };
 
-/** Every deal this company has been shown as a buyer, newest first (cross-deal buyer memory). */
-export function buyerHistory(companyId: number): BuyerHistoryRow[] {
+/**
+ * Every deal this company has been shown as a buyer, newest first (cross-deal
+ * buyer memory), limited to deals this user can see: a buyer list is MNPI.
+ */
+export function buyerHistory(companyId: number, user: AccessUser): BuyerHistoryRow[] {
+  const w = visibleDealIds(user, "d.id");
   return db()
     .prepare(
-      `SELECT b.id, b.deal_id, d.title AS deal_title, s.name AS seller_name, d.stage AS deal_stage, b.stage,
+      `SELECT b.id, b.deal_id, d.title AS deal_title, s.name AS seller_name, d.code_name, d.stage AS deal_stage, b.stage,
               b.declined_from_stage, b.decline_reason, b.ioi_low, b.ioi_high, b.loi_value, b.updated_at
        FROM deal_buyers b JOIN deals d ON d.id = b.deal_id JOIN companies s ON s.id = d.company_id
-       WHERE b.buyer_company_id = ? AND b.removed_at IS NULL
+       WHERE b.buyer_company_id = ? AND b.removed_at IS NULL AND ${w.sql}
        ORDER BY b.updated_at DESC, b.id DESC`
     )
-    .all(companyId) as BuyerHistoryRow[];
+    .all(companyId, ...w.params) as BuyerHistoryRow[];
 }
 
 export type Candidate = { id: number; name: string; domain: string | null; buyer_type: string | null; times_shown: number };
@@ -312,20 +353,26 @@ export type Candidate = { id: number; name: string; domain: string | null; buyer
  * deal. With no query: known buyers (a profile, or shown on an earlier deal),
  * most-shown first. With a query: name or domain match.
  */
-export function buyerCandidates(dealId: number, q: string, limit = 50): Candidate[] {
+export function buyerCandidates(dealId: number, q: string, limit = 50, user?: AccessUser): Candidate[] {
+  // "Shown N deals" counts only deals this user can see, so the picker never
+  // hints at a mandate behind the wall. No user = every deal (internal callers).
+  const w = user ? visibleDealIds(user, "x.deal_id") : { sql: "1 = 1", params: [] as number[] };
+  const wy = user ? visibleDealIds(user, "y.deal_id") : { sql: "1 = 1", params: [] as number[] };
   const base = `SELECT c.id, c.name, c.domain, p.buyer_type,
-       (SELECT COUNT(*) FROM deal_buyers x WHERE x.buyer_company_id = c.id AND x.removed_at IS NULL) AS times_shown
+       (SELECT COUNT(*) FROM deal_buyers x WHERE x.buyer_company_id = c.id AND x.removed_at IS NULL AND ${w.sql}) AS times_shown
      FROM companies c LEFT JOIN buyer_profiles p ON p.company_id = c.id
      WHERE c.id NOT IN (SELECT buyer_company_id FROM deal_buyers WHERE deal_id = ? AND removed_at IS NULL)
        AND c.id != (SELECT company_id FROM deals WHERE id = ?)`;
   if (q) {
     return db()
       .prepare(`${base} AND (c.name LIKE ? OR c.domain LIKE ?) ORDER BY (p.company_id IS NULL), c.name COLLATE NOCASE LIMIT ?`)
-      .all(dealId, dealId, `%${q}%`, `%${q}%`, limit) as Candidate[];
+      .all(...w.params, dealId, dealId, `%${q}%`, `%${q}%`, limit) as Candidate[];
   }
   return db()
-    .prepare(`${base} AND (p.company_id IS NOT NULL OR EXISTS (SELECT 1 FROM deal_buyers y WHERE y.buyer_company_id = c.id)) ORDER BY times_shown DESC, c.name COLLATE NOCASE LIMIT ?`)
-    .all(dealId, dealId, limit) as Candidate[];
+    .prepare(
+      `${base} AND (p.company_id IS NOT NULL OR EXISTS (SELECT 1 FROM deal_buyers y WHERE y.buyer_company_id = c.id AND ${wy.sql})) ORDER BY times_shown DESC, c.name COLLATE NOCASE LIMIT ?`
+    )
+    .all(...w.params, dealId, dealId, ...wy.params, limit) as Candidate[];
 }
 
 const normDomain = (s: string) =>
@@ -362,6 +409,9 @@ export function parseTermPatch(body: Record<string, unknown>): Partial<Record<Te
   for (const k of ["diligence_days", "exclusivity_days"] as const) if (has(k)) out[k] = v.integerRange(k, body[k], 0, 3650);
   for (const k of ["earnout", "financing"] as const) if (has(k)) out[k] = v.boundedString(k, body[k], 500);
   for (const k of ["structure_notes", "notes"] as const) if (has(k)) out[k] = v.boundedString(k, body[k], 2000);
+  // FOLLOWUPS: the banker's next step with this buyer and when it is due.
+  if (has("next_step")) out.next_step = v.boundedString("next_step", body.next_step, 300);
+  if (has("next_step_due")) out.next_step_due = v.isoDate("next_step_due", body.next_step_due);
   return out;
 }
 
@@ -384,4 +434,36 @@ export function stageHistory(dealId: number) {
        WHERE b.deal_id = ? ORDER BY h.created_at DESC, h.id DESC`
     )
     .all(dealId) as { id: number; deal_buyer_id: number; from_stage: string | null; to_stage: string; note: string | null; created_at: string; user_name: string | null; buyer_name: string }[];
+}
+
+export type BuyerFollowUp = {
+  id: number;
+  deal_id: number;
+  deal_title: string;
+  company_name: string;
+  buyer_name: string;
+  stage: BuyerStage;
+  next_step: string | null;
+  next_step_due: string;
+};
+
+/**
+ * FOLLOWUPS: buyer next steps due on or before `through` (a local "YYYY-MM-DD"),
+ * soonest first. Skips removed buyers, buyers out of the process (closed or
+ * declined) and deals that are closed or passed.
+ */
+export function buyerFollowUpsDue(through: string, closedDealStages: readonly string[]): BuyerFollowUp[] {
+  const placeholders = closedDealStages.map(() => "?").join(",") || "''";
+  return db()
+    .prepare(
+      `SELECT b.id, b.deal_id, d.title AS deal_title, s.name AS company_name, c.name AS buyer_name, b.stage, b.next_step, b.next_step_due
+       FROM deal_buyers b
+       JOIN deals d ON d.id = b.deal_id
+       JOIN companies s ON s.id = d.company_id
+       JOIN companies c ON c.id = b.buyer_company_id
+       WHERE b.removed_at IS NULL AND b.next_step_due IS NOT NULL AND b.next_step_due <= ?
+         AND b.stage NOT IN ('closed', 'declined') AND d.stage NOT IN (${placeholders})
+       ORDER BY b.next_step_due ASC, c.name COLLATE NOCASE`
+    )
+    .all(through, ...closedDealStages) as BuyerFollowUp[];
 }

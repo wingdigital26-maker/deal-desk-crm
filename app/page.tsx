@@ -17,11 +17,14 @@ import { CalendarIcon, ColumnsIcon, TriangleAlertIcon, UsersIcon } from "./compo
 import { bankerFirstName } from "./lib/relationship";
 import { attention } from "./lib/attention";
 import AttentionLabel from "./components/pipeline/AttentionLabel";
+import { buyerFollowUpsDue } from "./lib/buyers";
+import { followUpTitle, pickDueItems } from "./lib/followups";
+import { canSeeDeal, visibleDealIds } from "./lib/dealAccess";
 
 export const metadata = { title: `Today | ${firm.productName}` };
 
 type NeedRow = {
-  kind: "task" | "deal";
+  kind: "task" | "deal" | "buyer";
   id: number;
   title: string;
   due: string;
@@ -50,24 +53,30 @@ export default async function TodayPage() {
   if (!user) redirect("/login");
 
   const today = todayISO();
+  // Everything on Today is limited to deals this user can see (MNPI walls).
+  const w = visibleDealIds(user, "d.id");
+  const wt = visibleDealIds(user, "t.deal_id", { nullable: true });
 
   const dueTasks = db()
     .prepare(
       `SELECT t.id, t.title, t.due, t.deal_id, d.title AS deal_title, c.name AS company_name
        FROM tasks t LEFT JOIN deals d ON d.id = t.deal_id LEFT JOIN companies c ON c.id = d.company_id
-       WHERE t.done = 0 AND t.due IS NOT NULL AND t.due <= ?
+       WHERE t.done = 0 AND t.due IS NOT NULL AND t.due <= ? AND ${wt.sql}
        ORDER BY t.due ASC`
     )
-    .all(today) as { id: number; title: string; due: string; deal_id: number | null; deal_title: string | null; company_name: string | null }[];
+    .all(today, ...wt.params) as { id: number; title: string; due: string; deal_id: number | null; deal_title: string | null; company_name: string | null }[];
 
   const dueDeals = db()
     .prepare(
       `SELECT d.id, d.title, c.name AS company_name, d.next_step, d.next_step_due
        FROM deals d JOIN companies c ON c.id = d.company_id
-       WHERE d.next_step_due IS NOT NULL AND d.next_step_due <= ? AND d.stage NOT IN ('Closed', 'Passed')
+       WHERE d.next_step_due IS NOT NULL AND d.next_step_due <= ? AND d.stage NOT IN ('Closed', 'Passed') AND ${w.sql}
        ORDER BY d.next_step_due ASC`
     )
-    .all(today) as { id: number; title: string; company_name: string; next_step: string | null; next_step_due: string }[];
+    .all(today, ...w.params) as { id: number; title: string; company_name: string; next_step: string | null; next_step_due: string }[];
+
+  // FOLLOWUPS: buyer next steps due today or overdue sit beside tasks and deal steps.
+  const dueBuyers = buyerFollowUpsDue(today, firm.closedStages).filter((b) => canSeeDeal(user, b.deal_id));
 
   const needs: NeedRow[] = [
     ...dueTasks.map((t) => ({
@@ -88,7 +97,19 @@ export default async function TodayPage() {
       dealTitle: d.title,
       companyName: d.company_name,
     })),
+    ...dueBuyers.map((b) => ({
+      kind: "buyer" as const,
+      id: b.id,
+      title: followUpTitle(b.buyer_name, b.deal_title, b.company_name),
+      due: b.next_step_due,
+      dealId: b.deal_id,
+      dealTitle: b.deal_title,
+      companyName: b.next_step?.trim() || "Follow up",
+    })),
   ].sort((a, b) => a.due.localeCompare(b.due));
+
+  // Up to 3 buyer follow-ups always make the short list, so they are not buried under old tasks.
+  const shownNeeds = pickDueItems(needs, 7, 3);
 
   // Your deals and Going quiet read the same "what matters" rules as the
   // pipeline list (app/lib/attention.ts): quiet = no interaction in 21+ days.
@@ -101,10 +122,10 @@ export default async function TodayPage() {
               (SELECT GROUP_CONCAT(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) || COALESCE(' (' || p.title || ')', ''), ', ')
                  FROM contacts p WHERE p.company_id = d.company_id AND p.relationship IN ('knows-well','knows')) AS known
        FROM deals d JOIN companies c ON c.id = d.company_id
-       WHERE d.stage NOT IN ('Closed', 'Passed')
+       WHERE d.stage NOT IN ('Closed', 'Passed') AND ${w.sql}
        ORDER BY (d.next_step_due IS NULL), d.next_step_due, d.updated_at DESC`
     )
-    .all() as (QuietDealRow & {
+    .all(...w.params) as (QuietDealRow & {
       next_step: string | null;
       next_step_due: string | null;
       created_at: string;
@@ -125,7 +146,7 @@ export default async function TodayPage() {
   const bankerName = bankerFirstName();
   const glance: { label: string; value: number; href: string; tint: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
     { label: "Open deals", value: openDeals, href: "/pipeline", tint: "var(--tint-1)", Icon: ColumnsIcon },
-    { label: "Deal steps due or overdue", value: needs.length, href: "#needs", tint: "var(--tint-2)", Icon: CalendarIcon },
+    { label: "Steps and follow-ups due", value: needs.length, href: "#needs", tint: "var(--tint-2)", Icon: CalendarIcon },
     { label: "Deals quiet 21+ days", value: quietDeals.length, href: "/pipeline", tint: "var(--tint-3)", Icon: TriangleAlertIcon },
     { label: "People due for a touch", value: dueRelationships.length, href: "/contacts", tint: "var(--tint-4)", Icon: UsersIcon },
   ];
@@ -136,8 +157,8 @@ export default async function TodayPage() {
 
   // P5: saved regulatory and shareholder-vote dates in the next 30 days on bank / FIG deals.
   const figDeals = db()
-    .prepare(`SELECT d.id, c.name AS company_name FROM deals d JOIN companies c ON c.id = d.company_id WHERE d.fig_track = 1`)
-    .all() as { id: number; company_name: string }[];
+    .prepare(`SELECT d.id, c.name AS company_name FROM deals d JOIN companies c ON c.id = d.company_id WHERE d.fig_track = 1 AND ${w.sql}`)
+    .all(...w.params) as { id: number; company_name: string }[];
   const regDates = figDeals
     .flatMap((d) => {
       const filings = db().prepare("SELECT * FROM deal_regulatory_filings WHERE deal_id = ?").all(d.id) as Filing[];
@@ -156,7 +177,12 @@ export default async function TodayPage() {
       <PageHeader
         title={`Hi ${firstName}`}
         subtitle={`${greeting}. Here is your desk for ${dateLabel}.`}
-        actions={<ButtonLink href="/tasks" variant="primary">Add a task</ButtonLink>}
+        actions={
+          <>
+            <ButtonLink href="/brief" variant="secondary">Morning brief</ButtonLink>
+            <ButtonLink href="/tasks" variant="primary">Add a task</ButtonLink>
+          </>
+        }
       />
 
       <div className="mb-5 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
@@ -223,11 +249,11 @@ export default async function TodayPage() {
           <h2 className="mb-3 text-[16px] font-bold text-[var(--ink)]">Needs you today</h2>
           {needs.length === 0 ? (
             <p className="card px-5 py-4 text-sm text-[var(--ink-soft)]">
-              Nothing overdue and nothing due today. Tasks and deal next steps that need attention will show up here.
+              Nothing overdue and nothing due today. Tasks, deal next steps and buyer follow-ups that need attention will show up here.
             </p>
           ) : (
             <ul className="card">
-              {needs.slice(0, 6).map((n) => {
+              {shownNeeds.map((n) => {
                 const overdue = isOverdue(n.due);
                 return (
                   <li
@@ -254,9 +280,9 @@ export default async function TodayPage() {
                             {n.dealTitle}
                           </Link>
                         )}
-                        {n.kind === "deal" && n.dealId && (
+                        {n.kind !== "task" && n.dealId && (
                           <Link
-                            href={`/pipeline/${n.dealId}`}
+                            href={`/pipeline/${n.dealId}${n.kind === "buyer" ? "#buyers" : ""}`}
                             className="shrink-0 underline decoration-[var(--rule-strong)] hover:text-[var(--ink)]"
                           >
                             Open deal
@@ -276,9 +302,9 @@ export default async function TodayPage() {
               })}
             </ul>
           )}
-          {needs.length > 6 && (
+          {needs.length > shownNeeds.length && (
             <p className="mt-2 text-sm text-[var(--ink-soft)]">
-              And {needs.length - 6} more. <Link href="/tasks" className="underline">See every task</Link>
+              And {needs.length - shownNeeds.length} more. <Link href="/brief" className="underline">See the morning brief</Link>
             </p>
           )}
           </div>

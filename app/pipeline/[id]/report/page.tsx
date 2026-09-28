@@ -7,6 +7,7 @@ import { ButtonLink } from "../../../components/ui/Button";
 import PrintButton from "../../../components/buyers/PrintButton";
 import { ioiText, stageText } from "../../../components/buyers/format";
 import { formatMoney } from "../../../lib/dealMath";
+import { canSeeDeal, recordOutsideTeamView } from "../../../lib/dealAccess";
 
 export const metadata = { title: `Seller report | ${firm.productName}` };
 
@@ -18,6 +19,8 @@ export default async function SellerReportPage({ params, searchParams }: { param
   if (!user) redirect("/login");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
+  if (!canSeeDeal(user, id)) notFound();
+  recordOutsideTeamView(user, id, "seller_report");
   const report = sellerReport(id);
   if (!report) notFound();
   const showValues = (await searchParams).values === "1";
@@ -53,10 +56,11 @@ export default async function SellerReportPage({ params, searchParams }: { param
       <article className="card p-8">
         <header className="border-b border-[var(--rule)] pb-5">
           <div className="text-[12px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">Buyer process update · {today}</div>
-          <h1 className="display mt-1 text-[28px] font-bold text-[var(--ink)]">{deal.company_name}</h1>
+          <h1 className="display mt-1 text-[28px] font-bold text-[var(--ink)]">{deal.display_name}</h1>
           <div className="mt-1 text-sm text-[var(--ink-soft)]">
-            {deal.title}
-            {deal.expected_close ? ` · target close ${new Date(deal.expected_close + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}` : ""}
+            {/* A code-named deal's title can name the company, so the report leaves it out. */}
+            {deal.code_name ? "" : deal.title}
+            {deal.expected_close ? `${deal.code_name ? "Target" : " · target"} close ${new Date(deal.expected_close + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}` : ""}
           </div>
         </header>
 

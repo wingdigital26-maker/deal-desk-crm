@@ -2,7 +2,8 @@ export const runtime = "nodejs";
 
 import { requireUser } from "../../lib/session";
 import * as v from "../../lib/validate";
-import { addBuyers, funnel, listBuyers, reached, buyerErrorResponse } from "../../lib/buyers";
+import { addBuyersChecked, funnel, listBuyers, reached, buyerErrorResponse } from "../../lib/buyers";
+import { assertDeal } from "../../lib/dealAccess";
 
 // GET ?deal_id= : the deal's buyer log with funnel counts.
 export async function GET(req: Request) {
@@ -10,12 +11,15 @@ export async function GET(req: Request) {
   if (user instanceof Response) return user;
   const dealId = Number(new URL(req.url).searchParams.get("deal_id"));
   if (!Number.isInteger(dealId) || dealId <= 0) return Response.json({ error: "deal_id is required" }, { status: 400 });
+  const hidden = assertDeal(user, dealId);
+  if (hidden) return hidden;
   const items = listBuyers(dealId);
   return Response.json({ items, funnel: funnel(items), reached: reached(items) });
 }
 
 // POST { deal_id, buyers: [{ buyer_company_id, lead_contact_id? }] } : add one or many.
-// Duplicates are skipped and reported, never a failed batch.
+// Duplicates are skipped and reported, never a failed batch. `warnings` lists
+// conflicts (app/lib/conflicts.ts) for the banker to review; they never block.
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
@@ -30,7 +34,9 @@ export async function POST(req: Request) {
       buyer_company_id: v.integerRange(`buyers[${i}].buyer_company_id`, b?.buyer_company_id, 1, Number.MAX_SAFE_INTEGER, { required: true })!,
       lead_contact_id: v.integerRange(`buyers[${i}].lead_contact_id`, b?.lead_contact_id, 1, Number.MAX_SAFE_INTEGER),
     }));
-    const result = addBuyers(dealId, items, user.id);
+    const hidden = assertDeal(user, dealId);
+    if (hidden) return hidden;
+    const result = addBuyersChecked(dealId, items, user);
     return Response.json(result, { status: result.created.length || result.restored.length ? 201 : 200 });
   } catch (err) {
     return buyerErrorResponse(err);

@@ -4,6 +4,7 @@ import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import { requireUser } from "../../../../lib/session";
 import { audit } from "../../../../lib/db";
+import { canSeeDeal } from "../../../../lib/dealAccess";
 import { contentDisposition, getDocument, locateFile } from "../../../../lib/documents";
 
 // GET: stream one stored version as an attachment. Every download is audited
@@ -15,7 +16,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: "Invalid id" }, { status: 400 });
 
   const doc = getDocument(id);
-  if (!doc) return Response.json({ error: "Not found" }, { status: 404 });
+  if (!doc || !canSeeDeal(user, doc.deal_id)) return Response.json({ error: "Not found" }, { status: 404 });
   const file = locateFile(doc);
   if (!file) return Response.json({ error: "File not available in this workspace" }, { status: 404 });
 

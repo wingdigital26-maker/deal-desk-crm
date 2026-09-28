@@ -75,8 +75,10 @@ describe("deal economics PATCH", () => {
   afterEach(cleanup);
 
   it("saves every economics field and audits it", async () => {
-    await app.signIn("member");
+    const member = await app.signIn("member");
     const id = app.deal(app.company());
+    // MNPI walls: a member works only deals they are on.
+    app.insert("deal_team", { deal_id: id, user_id: member, role: "lead" });
     const res = await route.PATCH(
       jsonReq(`/api/deals/${id}`, "PATCH", {
         retainer: 50000,

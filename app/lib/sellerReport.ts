@@ -4,9 +4,12 @@ import { db } from "./db";
 import { funnel, listBuyers, reached, stageHistory, type BuyerRow } from "./buyers";
 import { BUYER_STAGE_LABELS, BUYER_TYPE_LABELS, FORWARD_STAGES, hasTerms, isBuyerStage, type BuyerType } from "./buyerStages";
 import type { Column, Sheet } from "./export";
+import { dealDisplayName } from "./codeNames";
 
 export type SellerReport = {
-  deal: { id: number; title: string; stage: string; company_name: string; expected_close: string | null };
+  // display_name is the code name when one is set, else the company name. Everything the
+  // report prints or exports uses display_name, so a code-named deal never names the company.
+  deal: { id: number; title: string; stage: string; company_name: string; code_name: string | null; display_name: string; expected_close: string | null };
   items: BuyerRow[];
   funnel: ReturnType<typeof funnel>;
   reached: Record<string, number>;
@@ -14,11 +17,14 @@ export type SellerReport = {
 };
 
 export function sellerReport(dealId: number): SellerReport | null {
-  const deal = db()
-    .prepare("SELECT d.id, d.title, d.stage, d.expected_close, c.name AS company_name FROM deals d JOIN companies c ON c.id = d.company_id WHERE d.id = ?")
-    .get(dealId) as SellerReport["deal"] | undefined;
-  if (!deal) return null;
-  const items = listBuyers(dealId);
+  const row = db()
+    .prepare("SELECT d.id, d.title, d.stage, d.expected_close, d.code_name, c.name AS company_name FROM deals d JOIN companies c ON c.id = d.company_id WHERE d.id = ?")
+    .get(dealId) as Omit<SellerReport["deal"], "display_name"> | undefined;
+  if (!row) return null;
+  const deal = { ...row, display_name: dealDisplayName(row) };
+  // FOLLOWUPS: the banker's next steps with buyers are internal; strip them so
+  // no seller-facing view or export can ever carry them.
+  const items = listBuyers(dealId).map((b) => ({ ...b, next_step: null, next_step_due: null }));
   return { deal, items, funnel: funnel(items), reached: reached(items), generated_at: new Date().toISOString() };
 }
 

@@ -4,6 +4,7 @@ import { requireUser } from "../../lib/session";
 import * as v from "../../lib/validate";
 import { documentErrorResponse, listDocuments, uploadDocument } from "../../lib/documents";
 import { DOC_KINDS, MAX_UPLOAD_BYTES } from "../../lib/documentKinds";
+import { assertDeal } from "../../lib/dealAccess";
 
 // Multipart framing (boundaries, part headers, the small text fields) on top of the file itself.
 const FORM_OVERHEAD = 64 * 1024;
@@ -15,6 +16,8 @@ export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const dealId = Number(sp.get("deal_id"));
   if (!Number.isInteger(dealId) || dealId <= 0) return Response.json({ error: "deal_id is required" }, { status: 400 });
+  const hidden = assertDeal(user, dealId);
+  if (hidden) return hidden;
   return Response.json({ items: listDocuments(dealId, sp.get("include_archived") === "1") });
 }
 
@@ -49,6 +52,8 @@ export async function POST(req: Request) {
   try {
     const dealId = v.integerRange("deal_id", field("deal_id"), 1, Number.MAX_SAFE_INTEGER, { required: true })!;
     const docKey = v.boundedString("doc_key", field("doc_key"), 100);
+    const hidden = assertDeal(user, dealId);
+    if (hidden) return hidden;
     const doc = uploadDocument(
       {
         dealId,

@@ -49,6 +49,7 @@ export default function DealDetail({
   const router = useRouter();
   const [deal, setDeal] = useState(initialDeal);
   const [title, setTitle] = useState(deal.title);
+  const [codeName, setCodeName] = useState(deal.code_name ?? "");
   const [situation, setSituation] = useState(deal.situation ?? "");
   const [nextStep, setNextStep] = useState(deal.next_step ?? "");
   const [nextStepDue, setNextStepDue] = useState(deal.next_step_due ?? "");
@@ -61,6 +62,7 @@ export default function DealDetail({
 
   const dirty =
     title.trim() !== deal.title ||
+    codeName.trim() !== (deal.code_name ?? "") ||
     (situation || null) !== (deal.situation ?? null) ||
     nextStep !== (deal.next_step ?? "") ||
     nextStepDue !== (deal.next_step_due ?? "");
@@ -75,6 +77,7 @@ export default function DealDetail({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
+          code_name: codeName.trim() || null,
           situation: situation || null,
           next_step: nextStep,
           next_step_due: nextStepDue,
@@ -157,11 +160,29 @@ export default function DealDetail({
           title={<span className="display text-xl">{deal.title}</span>}
           actions={dirty ? <Button size="sm" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</Button> : undefined}
         >
-          <div className="text-sm text-[var(--ink-soft)]">
-            <Link href={`/companies/${deal.company_id}`} className="font-medium text-[var(--accent-deep)] hover:underline">
-              {deal.company_name}
-            </Link>
-            {deal.company_domain ? ` · ${deal.company_domain}` : ""}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0 text-sm text-[var(--ink-soft)]">
+              <Link href={`/companies/${deal.company_id}`} className="font-medium text-[var(--accent-deep)] hover:underline">
+                {deal.company_name}
+              </Link>
+              {deal.company_domain ? ` · ${deal.company_domain}` : ""}
+            </div>
+            {/* WALLS: the code name stands in for the company on the seller report,
+                exports, document titles and a shared Pipeline screen. */}
+            <label className="flex items-center gap-2 text-[13px] text-[var(--ink-soft)]" htmlFor="deal-detail-code-name">
+              <span className="font-medium">Code name</span>
+              <input
+                id="deal-detail-code-name"
+                value={codeName}
+                onChange={(e) => setCodeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save();
+                }}
+                placeholder="e.g. Project Juniper"
+                maxLength={80}
+                className="h-11 w-[190px] rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink)] md:h-9"
+              />
+            </label>
           </div>
 
           {/* Contact and interaction fields come from the server props so a

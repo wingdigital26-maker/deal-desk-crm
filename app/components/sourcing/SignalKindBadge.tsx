@@ -5,6 +5,9 @@ const LABELS: Record<string, string> = {
   filing: "SEC filing",
   contract: "Federal contract",
   recall: "Recall",
+  "officer-change": "Officer change",
+  "owner-news": "Owner news",
+  "business-journal": "Business press",
   other: "Other",
 };
 

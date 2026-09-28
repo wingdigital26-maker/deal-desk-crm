@@ -3,6 +3,14 @@ export const runtime = "nodejs";
 import { db, audit } from "../../../lib/db";
 import { requireUser } from "../../../lib/session";
 import * as v from "../../../lib/validate";
+import { canSeeDeal, dealIdForTask } from "../../../lib/dealAccess";
+
+// A task on a deal this user cannot see answers exactly like a missing task.
+function hiddenTask(user: { id: number; role: string }, id: number): Response | null {
+  const dealId = dealIdForTask(id);
+  if (dealId === undefined || (dealId !== null && !canSeeDeal(user, dealId))) return Response.json({ error: "Not found" }, { status: 404 });
+  return null;
+}
 
 function parseId(raw: string): number | null {
   const id = Number(raw);
@@ -15,6 +23,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = hiddenTask(user, id);
+  if (hidden) return hidden;
 
   const task = db().prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   if (!task) return Response.json({ error: "Not found" }, { status: 404 });
@@ -28,6 +38,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = hiddenTask(user, id);
+  if (hidden) return hidden;
 
   const existing = db().prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
@@ -84,6 +96,8 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
 
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = hiddenTask(user, id);
+  if (hidden) return hidden;
 
   const existing = db().prepare("SELECT id FROM tasks WHERE id = ?").get(id);
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });

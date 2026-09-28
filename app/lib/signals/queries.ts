@@ -3,6 +3,7 @@
 // routes handle auth and validation.
 import { db, audit } from "../db";
 import { firm } from "../../../firm.config";
+import { addCreatorToTeam } from "../dealAccess";
 
 type SQLInputValue = string | number | bigint | null | Uint8Array;
 
@@ -40,7 +41,11 @@ export type SignalsFilter = {
   since?: string; // ISO date; filters on signals.observed_at (falls back to created_at)
 };
 
-const VALID_KINDS = new Set(["hiring", "news", "filing", "contract", "recall", "other"]);
+const VALID_KINDS = new Set([
+  "hiring", "news", "filing", "contract", "recall", "other",
+  // sourcing v2 (scrapers/sourcing_signals.py)
+  "officer-change", "owner-news", "business-journal",
+]);
 
 export function isValidKind(kind: string): boolean {
   return VALID_KINDS.has(kind);
@@ -167,11 +172,13 @@ export function promoteCompanyToDeal(
 
   const result = db()
     .prepare(
-      `INSERT INTO deals (company_id, primary_contact_id, title, stage) VALUES (?,?,?,?)`
+      `INSERT INTO deals (company_id, primary_contact_id, title, stage, owner_user_id) VALUES (?,?,?,?,?)`
     )
-    .run(companyId, opts.primaryContactId ?? null, title, stage);
+    .run(companyId, opts.primaryContactId ?? null, title, stage, userId);
 
   const dealId = Number(result.lastInsertRowid);
+  // MNPI walls: whoever opens the deal leads its team.
+  addCreatorToTeam(dealId, userId);
 
   db()
     .prepare(

@@ -31,7 +31,12 @@ export default function DealCard({
     >
       <Link href={`/pipeline/${deal.id}`} className="block">
         <div className="line-clamp-2 truncate text-sm font-bold text-[var(--ink)] hover:underline">{deal.company_name}</div>
-        <div className="mt-0.5 line-clamp-2 text-xs text-[var(--ink-soft)]">{deal.title}</div>
+        {deal.masked ? null : (
+          <div className="mt-0.5 line-clamp-2 text-xs text-[var(--ink-soft)]">
+            {deal.code_name?.trim() ? `${deal.code_name.trim()} · ` : ""}
+            {deal.title}
+          </div>
+        )}
       </Link>
       {(deal.enterprise_value != null || deal.ebitda != null) && (
         <div className="numeric mt-1.5 text-[12px] text-[var(--ink-soft)]">
@@ -41,7 +46,7 @@ export default function DealCard({
         </div>
       )}
       <PeopleLine deal={deal} />
-      {deal.next_step ? (
+      {deal.masked ? null : deal.next_step ? (
         <div className="mt-2 truncate text-xs text-[var(--ink-soft)]">{deal.next_step}</div>
       ) : (
         <div className="mt-2 text-xs italic text-[var(--ink-faint)]">No next step set</div>
@@ -83,6 +88,7 @@ export default function DealCard({
 
 /** Plain-text version of the people line, for title attributes. */
 export function peopleText(deal: Deal): string {
+  if (deal.masked) return "Names hidden while code names are on";
   const total = deal.people_count ?? 0;
   const known = deal.known_count ?? 0;
   const banker = bankerFirstName();
@@ -92,16 +98,19 @@ export function peopleText(deal: Deal): string {
 }
 
 /** Who the banker knows at this company: the heart of the pipe. `oneLine` truncates it with the full text on hover. */
-export function PeopleLine({ deal, oneLine = false }: { deal: Deal; oneLine?: boolean }) {
+export function PeopleLine({ deal, oneLine = false, prefix }: { deal: Deal; oneLine?: boolean; prefix?: string | null }) {
   const total = deal.people_count ?? 0;
   const known = deal.known_count ?? 0;
   const banker = bankerFirstName();
   return (
     <div
       className={`text-[12px] text-[var(--ink-soft)] ${oneLine ? "mt-0.5 truncate" : "mt-1.5"}`}
-      title={oneLine ? peopleText(deal) : undefined}
+      title={oneLine ? `${prefix ? `${prefix} · ` : ""}${peopleText(deal)}` : undefined}
     >
-      {total === 0 ? (
+      {prefix && <span className="font-semibold text-[var(--ink)]">{prefix} · </span>}
+      {deal.masked ? (
+        <span className="italic text-[var(--ink-faint)]">Names hidden while code names are on</span>
+      ) : total === 0 ? (
         <span className="italic text-[var(--ink-faint)]">No people added yet</span>
       ) : known === 0 ? (
         <>

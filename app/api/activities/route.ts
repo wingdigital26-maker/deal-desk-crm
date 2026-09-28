@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 import { db, audit } from "../../lib/db";
 import { requireUser } from "../../lib/session";
+import { assertDeal, visibleDealIds } from "../../lib/dealAccess";
 
 const KINDS = ["note", "call", "meeting", "email-out", "email-in", "stage-change", "signal", "import"];
 
@@ -28,17 +29,21 @@ export async function GET(req: Request) {
     params.push(Number(contactId));
   }
   if (dealId) {
+    const hidden = assertDeal(user, Number(dealId));
+    if (hidden) return hidden;
     where.push("activities.deal_id = ?");
     params.push(Number(dealId));
   }
+  // A company or contact timeline never shows notes from a deal behind the wall.
+  const w = visibleDealIds(user, "activities.deal_id", { nullable: true });
 
   const rows = db()
     .prepare(
       `SELECT activities.*, users.name AS user_name FROM activities
        LEFT JOIN users ON users.id = activities.user_id
-       WHERE ${where.join(" OR ")} ORDER BY activities.created_at DESC, activities.id DESC`
+       WHERE (${where.join(" OR ")}) AND ${w.sql} ORDER BY activities.created_at DESC, activities.id DESC`
     )
-    .all(...params);
+    .all(...params, ...w.params);
 
   return Response.json({ rows });
 }
@@ -56,6 +61,10 @@ export async function POST(req: Request) {
   const dealId = body.deal_id != null ? Number(body.deal_id) : null;
   if (!companyId && !contactId && !dealId) {
     return Response.json({ error: "An activity must be attached to a company, contact or deal" }, { status: 400 });
+  }
+  if (dealId) {
+    const hidden = assertDeal(user, dealId);
+    if (hidden) return hidden;
   }
   const activityBody = typeof body.body === "string" && body.body.trim() ? body.body.trim() : null;
   if (body.kind === "note" && !activityBody) {

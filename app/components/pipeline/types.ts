@@ -25,6 +25,10 @@ export type Deal = {
   known_count?: number;
   known_names?: string | null;
   outcome?: string | null;
+  /** WALLS: project code name ("Project Juniper") that stands in for the company. */
+  code_name?: string | null;
+  /** Set by maskDeal when "Show code names" hides the real company. */
+  masked?: boolean;
   company_city?: string | null;
   company_state?: string | null;
   primary_contact_name?: string | null;

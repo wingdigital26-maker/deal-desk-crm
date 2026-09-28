@@ -13,6 +13,7 @@ import RegulatoryPanel from "../../components/regulatory/RegulatoryPanel";
 import { listFilings, listVotes } from "../../lib/regulatoryStore";
 import DealDocuments from "../../components/documents/DealDocuments";
 import { latestNdaByBuyer, listDocuments } from "../../lib/documents";
+import { canSeeDeal, recordOutsideTeamView } from "../../lib/dealAccess";
 import type { Deal, Task, TeamMember, UserOption } from "../../components/pipeline/types";
 import type { Activity } from "../../components/crm/Timeline";
 
@@ -23,6 +24,9 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   const { id: rawId } = await params;
   const id = Number(rawId);
   if (!Number.isInteger(id) || id <= 0) notFound();
+  // MNPI walls: a deal this user is not cleared for is a 404, same as a missing one.
+  if (!canSeeDeal(user, id)) notFound();
+  recordOutsideTeamView(user, id, "deal_page");
 
   const deal = db()
     .prepare(
@@ -84,7 +88,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
           />
         }
       />
-      <div className="mt-6">
+      <div id="buyers" className="mt-6 scroll-mt-4">
         <BuyerLog dealId={deal.id} initial={{ items: buyers, funnel: funnel(buyers), reached: reached(buyers) }} ndaDocs={ndaDocs} />
       </div>
       <div className="mt-6">

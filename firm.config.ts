@@ -29,6 +29,9 @@ export const firm = {
   productName: "Deal Desk",
   builtBy: "Wing Digital", // vendor credit on the sign-in screen
   regulated: true, // FINRA member: outbound content needs principal pre-approval
+  // Who sees a deal (MNPI walls, app/lib/dealAccess.ts). "team": only the deal's
+  // owner and its deal team (owners see every deal to run the desk). "all": everyone.
+  dealAccess: "team" as "team" | "all",
   sender: {
     name: demoOverride("DEMO_OWNER_NAME", "Jordan Hale"),
     title: demoOverride("DEMO_OWNER_TITLE", "Managing Director"),

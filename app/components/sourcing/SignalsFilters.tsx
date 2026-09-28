@@ -12,6 +12,9 @@ const KINDS = [
   { value: "news", label: "News" },
   { value: "filing", label: "SEC filing" },
   { value: "contract", label: "Federal contract" },
+  { value: "officer-change", label: "Officer change" },
+  { value: "owner-news", label: "Owner news" },
+  { value: "business-journal", label: "Business press" },
 ];
 
 export default function SignalsFilters({ segments }: { segments: readonly Segment[] }) {

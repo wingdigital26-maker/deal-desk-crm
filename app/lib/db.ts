@@ -348,6 +348,35 @@ CREATE TABLE IF NOT EXISTS deal_shareholder_votes (
   UNIQUE (deal_id, party)
 );
 -- ---- end P5 ----
+-- ---- SOURCING V2 (scrapers/pipeline.py) ----
+-- One row per weekly sourcing run: website finder, fit score, owners, signals.
+-- Written only by the Python pipeline; the Sourcing page reads the latest row.
+CREATE TABLE IF NOT EXISTS sourcing_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  checked INTEGER NOT NULL DEFAULT 0,
+  sites_found INTEGER NOT NULL DEFAULT 0,
+  sites_unconfirmed INTEGER NOT NULL DEFAULT 0,
+  fits INTEGER NOT NULL DEFAULT 0,
+  owners_found INTEGER NOT NULL DEFAULT 0,
+  signals_new INTEGER NOT NULL DEFAULT 0,
+  errors INTEGER NOT NULL DEFAULT 0,
+  requests INTEGER NOT NULL DEFAULT 0,
+  notes TEXT
+);
+-- The officers / owners seen for a company on each run, per source, so a
+-- later run can raise an officer-change signal when someone is added or removed.
+CREATE TABLE IF NOT EXISTS officer_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  names_json TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  taken_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS officer_snapshots_company ON officer_snapshots(company_id, source, id);
+-- ---- end SOURCING V2 ----
 `;
 
 // Additive, idempotent column migrations for databases created by an earlier schema.
@@ -390,6 +419,21 @@ const COLUMN_MIGRATIONS: [table: string, column: string, ddl: string][] = [
   // Plain INTEGER (ALTER TABLE cannot add a real FK everywhere): the contact
   // DELETE route clears it, and every read LEFT JOINs contacts.
   ["deals", "referral_contact_id", "INTEGER"],
+  // ---- SOURCING V2: written by scrapers/pipeline.py ----
+  // fit_score 0-100 (null = never scored); the reasons live in profile_facts 'fit_reasons'.
+  ["companies", "fit_score", "INTEGER"],
+  ["companies", "fit_checked_at", "TEXT"],
+  // Last time the website finder looked; the weekly run skips anything checked in the last 30 days.
+  ["companies", "website_checked_at", "TEXT"],
+  // ---- end SOURCING V2 ----
+  // ---- FOLLOWUPS: the banker's next step with each buyer (internal only, never on the seller report) ----
+  // next_step_due is a plain local "YYYY-MM-DD", like deals.next_step_due.
+  ["deal_buyers", "next_step", "TEXT"],
+  ["deal_buyers", "next_step_due", "TEXT"],
+  // ---- WALLS: need-to-know access. A code name ("Project Juniper") stands in
+  // for the company name on reports, exports and shared screens. ----
+  ["deals", "code_name", "TEXT"],
+  // ---- end WALLS ----
 ];
 
 function migrate(d: DatabaseSync) {

@@ -5,6 +5,7 @@
 import { db } from "./db";
 import { expectedFee } from "./dealMath";
 import { firm } from "../../firm.config";
+import { visibleDealIds, type AccessUser } from "./dealAccess";
 
 export type ReferralSource = {
   contact_id: number;
@@ -44,23 +45,26 @@ export function outcomeStages(cfg: { closedStages: readonly string[]; stageProba
   return { won, lost };
 }
 
-export function referralSources(): ReferralSource[] {
+// WALLS: credit counts only deals this user can see, and a person who is a
+// source only through a hidden deal does not appear at all.
+export function referralSources(user: AccessUser): ReferralSource[] {
+  const w = visibleDealIds(user, "deals.id");
   const people = db()
     .prepare(
       `SELECT c.id AS contact_id, c.first_name, c.last_name, c.title, c.company_id, co.name AS firm_name,
               c.referral_kind, c.touch_every_days,
               (SELECT MAX(a.created_at) FROM activities a WHERE a.contact_id = c.id) AS last_touch
        FROM contacts c LEFT JOIN companies co ON co.id = c.company_id
-       WHERE c.referral_kind IS NOT NULL OR c.id IN (SELECT referral_contact_id FROM deals WHERE referral_contact_id IS NOT NULL)`
+       WHERE c.referral_kind IS NOT NULL OR c.id IN (SELECT referral_contact_id FROM deals WHERE referral_contact_id IS NOT NULL AND ${w.sql})`
     )
-    .all() as Omit<ReferralSource, "deals_sourced" | "open" | "won" | "lost" | "won_fees" | "won_without_fee">[];
+    .all(...w.params) as Omit<ReferralSource, "deals_sourced" | "open" | "won" | "lost" | "won_fees" | "won_without_fee">[];
 
   const deals = db()
     .prepare(
       `SELECT referral_contact_id, stage, retainer, success_fee_pct, enterprise_value, probability
-       FROM deals WHERE referral_contact_id IS NOT NULL`
+       FROM deals WHERE referral_contact_id IS NOT NULL AND ${w.sql}`
     )
-    .all() as DealRow[];
+    .all(...w.params) as DealRow[];
 
   const { won, lost } = outcomeStages();
   const credit = new Map<number, Pick<ReferralSource, "deals_sourced" | "open" | "won" | "lost" | "won_fees" | "won_without_fee">>();
@@ -88,10 +92,11 @@ export function referralSources(): ReferralSource[] {
     );
 }
 
-/** One contact's credit, for the contact page. */
-export function referralCredit(contactId: number): { deals_sourced: number; open: number; won: number } {
+/** One contact's credit, for the contact page (deals this user can see). */
+export function referralCredit(contactId: number, user: AccessUser): { deals_sourced: number; open: number; won: number } {
   const { won, lost } = outcomeStages();
-  const stages = db().prepare("SELECT stage FROM deals WHERE referral_contact_id = ?").all(contactId) as { stage: string }[];
+  const w = visibleDealIds(user, "id");
+  const stages = db().prepare(`SELECT stage FROM deals WHERE referral_contact_id = ? AND ${w.sql}`).all(contactId, ...w.params) as { stage: string }[];
   return {
     deals_sourced: stages.length,
     open: stages.filter((d) => !won.includes(d.stage) && !lost.includes(d.stage)).length,

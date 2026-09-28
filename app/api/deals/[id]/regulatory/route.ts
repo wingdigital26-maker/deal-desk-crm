@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { requireUser } from "../../../../lib/session";
 import * as v from "../../../../lib/validate";
+import { assertDeal } from "../../../../lib/dealAccess";
 import { RegulatoryError, addEntry, deleteEntry, regulatoryState, updateEntry } from "../../../../lib/regulatoryStore";
 
 // P5 regulatory tracker for one deal. GET returns filings (with suggested
@@ -41,6 +42,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   return state(id);
 }
 
@@ -49,6 +52,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   const body = await readBody(req);
   if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   try {
@@ -64,6 +69,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   const body = await readBody(req);
   if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   try {
@@ -79,6 +86,8 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   const q = new URL(req.url).searchParams;
   try {
     deleteEntry(id, q.get("type"), q.get("id"), user.id);

@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { db, audit } from "./db";
 import * as v from "./validate";
 import { putBlob, blobPath, blobSize } from "./files";
-import { ALLOWED_TYPES, BUYER_KINDS, DOC_KINDS, MAX_UPLOAD_BYTES, type DocKind } from "./documentKinds";
+import { ALLOWED_TYPES, BUYER_KINDS, DOC_KIND_LABELS, DOC_KINDS, MAX_UPLOAD_BYTES, type DocKind } from "./documentKinds";
 
 export class DocumentError extends Error {
   status: number;
@@ -196,7 +196,7 @@ export function uploadDocument(input: UploadInput, userId: number): DocumentRow 
   const filename = sanitizeFilename(input.filename);
   const mime = checkFileType(filename, input.clientMime);
 
-  const deal = db().prepare("SELECT id FROM deals WHERE id = ?").get(input.dealId);
+  const deal = db().prepare("SELECT id, code_name FROM deals WHERE id = ?").get(input.dealId) as { id: number; code_name: string | null } | undefined;
   if (!deal) throw new DocumentError("Deal not found", 404);
 
   let kind: DocKind;
@@ -224,7 +224,9 @@ export function uploadDocument(input: UploadInput, userId: number): DocumentRow 
       if (!b || b.deal_id !== input.dealId) throw new DocumentError("That buyer is not on this deal's buyer log");
     }
     docKey = defaultKey(input.dealId, kind, dealBuyerId);
-    title = input.title ?? stem(filename);
+    // WALLS: a code-named deal titles its documents by code name ("Project Juniper CIM"),
+    // never by a file name that may carry the company's real name.
+    title = input.title ?? (deal.code_name?.trim() ? `${deal.code_name.trim()} ${DOC_KIND_LABELS[kind]}` : stem(filename));
   }
 
   const { sha256, size } = putBlob(input.bytes);

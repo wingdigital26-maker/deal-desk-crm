@@ -1851,6 +1851,77 @@ function companyByName(name) {
   }
 }
 
+// WALLS demo block (need-to-know deal access and code names). Paste into
+// scripts/seed-demo.mjs just before the "// 18. Summary" section.
+// Gives three open deals project code names and puts the member user (id 3)
+// on exactly four deal teams, so signing in as the member shows a walled
+// pipeline. Deterministic: picks by stage order, then deal id.
+{
+  const OPEN = ["LOI", "In Market", "Engaged", "NDA", "In Dialogue", "Contacted", "Sourced"];
+  const open = deals
+    .filter((d) => OPEN.includes(d.stage))
+    .sort((a, b) => OPEN.indexOf(a.stage) - OPEN.indexOf(b.stage) || a.id - b.id);
+
+  const setCode = db.prepare("UPDATE deals SET code_name = ? WHERE id = ?");
+  const codeNames = ["Project Juniper", "Project Falcon", "Project Harbor"];
+  const coded = open.slice(0, codeNames.length);
+  coded.forEach((d, i) => setCode.run(codeNames[i], d.id));
+
+  // The member sees only the deals they work: off every team and ownership first,
+  // then onto four teams (two of the code-named deals and two earlier-stage ones).
+  const MEMBER = 3;
+  db.prepare("DELETE FROM deal_team WHERE user_id = ?").run(MEMBER);
+  db.prepare("UPDATE deals SET owner_user_id = NULL WHERE owner_user_id = ?").run(MEMBER);
+  const memberDeals = [coded[0], coded[2], ...open.slice(codeNames.length).filter((_, i) => i % 3 === 0).slice(0, 2)].filter(Boolean);
+  const insTeam = db.prepare("INSERT OR IGNORE INTO deal_team (deal_id, user_id, role, added_at) VALUES (?,?,?,?)");
+  memberDeals.forEach((d, i) => insTeam.run(d.id, MEMBER, i === 0 ? "execution" : "analyst", isoDateTime(daysFromToday(-20 + i))));
+
+  console.log(`  walls: ${coded.length} code names (${codeNames.slice(0, coded.length).join(", ")}), member on ${memberDeals.length} deal teams`);
+}
+
+// ---------------------------------------------------------------------------
+// FOLLOWUPS: the banker's next step with about eight buyers across the seeded
+// buyer logs: two overdue, two due today, the rest over the next ten days.
+// Deterministic (no PRNG draws), dates relative to today. Internal only: these
+// never show on the seller report. Paste into scripts/seed-demo.mjs just
+// before "// 18. Summary".
+// ---------------------------------------------------------------------------
+{
+  const open = db
+    .prepare(
+      `SELECT b.id, b.deal_id, b.stage FROM deal_buyers b JOIN deals d ON d.id = b.deal_id
+       WHERE b.removed_at IS NULL AND b.stage NOT IN ('closed', 'declined') AND d.stage NOT IN ('Closed', 'Passed')
+       ORDER BY b.deal_id, b.id`
+    )
+    .all();
+  // Round-robin across deals so every seeded buyer log gets some.
+  const byDeal = new Map();
+  for (const r of open) {
+    if (!byDeal.has(r.deal_id)) byDeal.set(r.deal_id, []);
+    byDeal.get(r.deal_id).push(r);
+  }
+  const queues = [...byDeal.values()];
+  const picked = [];
+  for (let round = 0; picked.length < 8 && queues.some((q) => q.length > round); round++) {
+    for (const q of queues) if (q[round] && picked.length < 8) picked.push(q[round]);
+  }
+
+  const STEP = {
+    teaser_sent: "Chase teaser read, offer NDA",
+    nda_sent: "Chase NDA markup",
+    nda_signed: "Send CIM and data room login",
+    cim_sent: "Check CIM questions before IOI date",
+    ioi: "Walk through IOI assumptions",
+    mgmt_meeting: "Confirm management meeting agenda",
+    loi: "Push for LOI markup",
+    exclusivity: "Diligence call on QoE findings",
+  };
+  // Two overdue, two today, four upcoming.
+  const OFFSETS = [-3, -1, 0, 0, 2, 4, 7, 10];
+  const set = db.prepare("UPDATE deal_buyers SET next_step = ?, next_step_due = ? WHERE id = ?");
+  picked.forEach((b, i) => set.run(STEP[b.stage] ?? "Follow up", isoDate(daysFromToday(OFFSETS[i])), b.id));
+}
+
 // ---------------------------------------------------------------------------
 // 18. Summary + integrity checks
 // ---------------------------------------------------------------------------

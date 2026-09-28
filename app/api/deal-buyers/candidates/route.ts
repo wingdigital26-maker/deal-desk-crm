@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { requireUser } from "../../../lib/session";
 import { buyerCandidates, resolveCompanies } from "../../../lib/buyers";
+import { assertDeal } from "../../../lib/dealAccess";
 
 // GET ?deal_id=&q= : companies to offer in the bulk-add picker.
 export async function GET(req: Request) {
@@ -10,8 +11,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const dealId = Number(url.searchParams.get("deal_id"));
   if (!Number.isInteger(dealId) || dealId <= 0) return Response.json({ error: "deal_id is required" }, { status: 400 });
+  const hidden = assertDeal(user, dealId);
+  if (hidden) return hidden;
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
-  return Response.json({ items: buyerCandidates(dealId, q) });
+  return Response.json({ items: buyerCandidates(dealId, q, 50, user) });
 }
 
 // POST { rows: [{ name, domain }] } : match pasted CSV rows to existing companies.

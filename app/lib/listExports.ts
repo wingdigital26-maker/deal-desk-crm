@@ -8,6 +8,8 @@ import { effectiveProbability, expectedFee, weightedFee } from "./dealMath";
 import { referralSources, type ReferralSource } from "./referrals";
 import { referralKindLabel } from "./referralKinds";
 import { firm } from "../../firm.config";
+import { visibleDealIds, type AccessUser } from "./dealAccess";
+import { dealDisplayName } from "./codeNames";
 
 export const EXPORT_ENTITIES = ["companies", "contacts", "deals", "tasks", "referrals"] as const;
 export type ExportEntityName = (typeof EXPORT_ENTITIES)[number];
@@ -80,9 +82,12 @@ type DealRow = {
   id: number; title: string; stage: string; situation: string | null; company_name: string; next_step: string | null; next_step_due: string | null;
   retainer: number | null; success_fee_pct: number | null; ebitda: number | null; enterprise_value: number | null; probability: number | null;
   expected_close: string | null; fee_terms: string | null; owner_name: string | null; referral_first: string | null; referral_last: string | null;
-  created_at: string; updated_at: string;
+  code_name: string | null; created_at: string; updated_at: string;
 };
-function deals(): Sheet<DealRow> {
+// WALLS: only deals this user can see, and a code-named deal is exported under
+// its code name (company and deal title both), never the company's real name.
+function deals(user: AccessUser): Sheet<DealRow> {
+  const w = visibleDealIds(user, "d.id");
   const rows = (
     db()
       .prepare(
@@ -90,15 +95,16 @@ function deals(): Sheet<DealRow> {
          FROM deals d JOIN companies co ON co.id = d.company_id
          LEFT JOIN users u ON u.id = d.owner_user_id
          LEFT JOIN contacts r ON r.id = d.referral_contact_id
+         WHERE ${w.sql}
          ORDER BY d.id`
       )
-      .all() as DealRow[]
+      .all(...w.params) as DealRow[]
     // Pipeline order: stage as configured, then oldest deal first.
   ).sort((a, b) => firm.dealStages.indexOf(a.stage as never) - firm.dealStages.indexOf(b.stage as never) || a.id - b.id);
   const columns: Column<DealRow>[] = [
     { key: "id", label: "ID", value: (r) => r.id },
-    { key: "title", label: "Deal", value: (r) => r.title },
-    { key: "company", label: "Company", value: (r) => r.company_name },
+    { key: "title", label: "Deal", value: (r) => (r.code_name?.trim() ? r.code_name.trim() : r.title) },
+    { key: "company", label: "Company", value: (r) => dealDisplayName(r) },
     { key: "stage", label: "Stage", value: (r) => r.stage },
     { key: "situation", label: "Situation", value: (r) => r.situation },
     { key: "ebitda", label: "EBITDA", value: (r) => r.ebitda, numFmt: "integer" },
@@ -121,29 +127,33 @@ function deals(): Sheet<DealRow> {
 }
 
 type TaskRow = {
-  id: number; title: string; due: string | null; done: number; deal_title: string | null; contact_first: string | null; contact_last: string | null; created_at: string;
+  id: number; title: string; due: string | null; done: number; deal_title: string | null; deal_code_name: string | null;
+  contact_first: string | null; contact_last: string | null; created_at: string;
 };
-function tasks(): Sheet<TaskRow> {
+function tasks(user: AccessUser): Sheet<TaskRow> {
+  const w = visibleDealIds(user, "t.deal_id", { nullable: true });
   const rows = db()
     .prepare(
-      `SELECT t.id, t.title, t.due, t.done, t.created_at, d.title AS deal_title, c.first_name AS contact_first, c.last_name AS contact_last
+      `SELECT t.id, t.title, t.due, t.done, t.created_at, d.title AS deal_title, d.code_name AS deal_code_name,
+              c.first_name AS contact_first, c.last_name AS contact_last
        FROM tasks t LEFT JOIN deals d ON d.id = t.deal_id LEFT JOIN contacts c ON c.id = t.contact_id
+       WHERE ${w.sql}
        ORDER BY t.done, (t.due IS NULL), t.due, t.id`
     )
-    .all() as TaskRow[];
+    .all(...w.params) as TaskRow[];
   const columns: Column<TaskRow>[] = [
     { key: "id", label: "ID", value: (r) => r.id },
     { key: "title", label: "Task", value: (r) => r.title },
     { key: "due", label: "Due", value: (r) => r.due },
     { key: "done", label: "Done", value: (r) => (r.done ? "Yes" : "No") },
-    { key: "deal", label: "Deal", value: (r) => r.deal_title },
+    { key: "deal", label: "Deal", value: (r) => (r.deal_code_name?.trim() ? r.deal_code_name.trim() : r.deal_title) },
     { key: "contact", label: "Contact", value: (r) => personName({ first_name: r.contact_first, last_name: r.contact_last }) || null },
     { key: "created_at", label: "Created", value: (r) => r.created_at },
   ];
   return { name: "Tasks", columns, rows };
 }
 
-function referrals(): Sheet<ReferralSource> {
+function referrals(user: AccessUser): Sheet<ReferralSource> {
   const columns: Column<ReferralSource>[] = [
     { key: "id", label: "Contact ID", value: (r) => r.contact_id },
     { key: "name", label: "Name", value: (r) => personName(r) },
@@ -157,10 +167,10 @@ function referrals(): Sheet<ReferralSource> {
     { key: "last_touch", label: "Last touch", value: (r) => r.last_touch },
     { key: "touch_every_days", label: "Touch every (days)", value: (r) => r.touch_every_days },
   ];
-  return { name: "Referral sources", columns, rows: referralSources() };
+  return { name: "Referral sources", columns, rows: referralSources(user) };
 }
 
-export function buildExport(entity: ExportEntityName, get: Get): { filename: string; sheet: Sheet<unknown> } {
+export function buildExport(entity: ExportEntityName, get: Get, user: AccessUser): { filename: string; sheet: Sheet<unknown> } {
   const date = new Date().toISOString().slice(0, 10);
   const sheet =
     entity === "companies"
@@ -168,10 +178,10 @@ export function buildExport(entity: ExportEntityName, get: Get): { filename: str
       : entity === "contacts"
         ? contacts(get)
         : entity === "deals"
-          ? deals()
+          ? deals(user)
           : entity === "tasks"
-            ? tasks()
-            : referrals();
+            ? tasks(user)
+            : referrals(user);
   const stem = entity === "referrals" ? "referral-sources" : entity;
   return { filename: `${stem}-${date}`, sheet: sheet as Sheet<unknown> };
 }

@@ -11,14 +11,19 @@ import { referralSources, type ReferralSource } from "../../lib/referrals";
 import { referralKindLabel } from "../../lib/referralKinds";
 import { cadenceLabel } from "../../lib/cadenceLabels";
 import { formatMoney } from "../../lib/dealMath";
+import { redirect } from "next/navigation";
+import { currentUser } from "../../lib/session";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: `Referral sources | ${firm.productName}` };
 
 type Row = ReferralSource & { id: number };
 
-export default function ReferralSourcesPage() {
-  const rows: Row[] = referralSources().map((r) => ({ ...r, id: r.contact_id }));
+export default async function ReferralSourcesPage() {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  // Credit counts only deals this user can see (MNPI walls).
+  const rows: Row[] = referralSources(user).map((r) => ({ ...r, id: r.contact_id }));
   const credited = rows.filter((r) => r.deals_sourced > 0).length;
 
   const columns: Column<Row>[] = [

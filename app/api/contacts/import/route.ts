@@ -1,7 +1,9 @@
 export const runtime = "nodejs";
 // CSV import for contacts (and, incidentally, the companies they belong to).
 // Body: { rows: Record<string,string>[], mapping: Record<targetField, csvHeader> }
-// Target fields: first_name, last_name, title, email, phone, linkedin_url, company_name
+// Target fields: first_name, last_name, title, email, phone, mobile_phone, linkedin_url,
+// company_name, company_domain. mobile_phone only fills phone when phone is blank
+// (Outlook and Google exports carry both; the client maps them via contactImportMap).
 import { db, audit } from "../../../lib/db";
 import { syncFromContact } from "../../../lib/contactCompanies";
 import { requireUser } from "../../../lib/session";
@@ -9,7 +11,7 @@ import { isValidEmail } from "../../../lib/csv";
 import { normalizeDomain } from "../../companies/route";
 
 type Mapping = Partial<Record<
-  "first_name" | "last_name" | "title" | "email" | "phone" | "linkedin_url" | "company_name" | "company_domain",
+  "first_name" | "last_name" | "title" | "email" | "phone" | "mobile_phone" | "linkedin_url" | "company_name" | "company_domain",
   string
 >>;
 
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
     const lastName = get("last_name") || null;
     const title = get("title") || null;
     const email = get("email").toLowerCase() || null;
-    const phone = get("phone") || null;
+    const phone = get("phone") || get("mobile_phone") || null;
     const linkedinUrl = get("linkedin_url") || null;
     const companyName = get("company_name") || null;
     const companyDomainRaw = get("company_domain") || null;
@@ -74,11 +76,11 @@ export async function POST(req: Request) {
     let companyId: number | null = null;
     if (companyDomainRaw || companyName) {
       const domain = companyDomainRaw ? normalizeDomain(companyDomainRaw) : null;
-      const existing = domain
-        ? (findCompanyByDomain.get(domain) as { id: number } | undefined)
-        : companyName
-        ? (findCompanyByName.get(companyName) as { id: number } | undefined)
-        : undefined;
+      // Domain first, then the exact company name, so an Outlook row naming an
+      // existing company never creates a second one.
+      const existing =
+        (domain ? (findCompanyByDomain.get(domain) as { id: number } | undefined) : undefined) ??
+        (companyName ? (findCompanyByName.get(companyName) as { id: number } | undefined) : undefined);
       if (existing) {
         companyId = existing.id;
       } else {

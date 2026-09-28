@@ -5,6 +5,9 @@ import { cookieMock, freshApp, params, jsonReq, cleanup, harness, type App } fro
 
 vi.mock("next/headers", () => cookieMock());
 
+// Owners see every deal (MNPI walls), so owner-scoped reads match the old unscoped ones.
+const OWNER = { id: 0, role: "owner" };
+
 let app: App;
 let links: typeof import("../app/api/contacts/[id]/companies/route");
 let contactsApi: typeof import("../app/api/contacts/route");
@@ -136,7 +139,7 @@ describe("3.2 referral sources and credit", () => {
 
   it("credit counts match the deals", async () => {
     const { cpa, lawyer } = await setup();
-    const rows = referrals.referralSources();
+    const rows = referrals.referralSources(OWNER);
     const c = rows.find((r) => r.contact_id === cpa)!;
     expect(c).toMatchObject({ deals_sourced: 4, open: 2, won: 1, lost: 1, won_fees: 50000 + 600000, won_without_fee: 0 });
     expect(rows.find((r) => r.contact_id === lawyer)).toMatchObject({ deals_sourced: 0, open: 0, won: 0, won_fees: 0 });
@@ -144,14 +147,14 @@ describe("3.2 referral sources and credit", () => {
     const plain = app.contact({ first_name: "Pat" });
     const d = app.deal(app.company(), "Sourced");
     app.db.prepare("UPDATE deals SET referral_contact_id = ? WHERE id = ?").run(plain, d);
-    expect(referrals.referralSources().find((r) => r.contact_id === plain)).toMatchObject({ deals_sourced: 1, open: 1, referral_kind: null });
+    expect(referrals.referralSources(OWNER).find((r) => r.contact_id === plain)).toMatchObject({ deals_sourced: 1, open: 1, referral_kind: null });
   });
 
   it("changing a deal's source moves the credit (PATCH validated and audited)", async () => {
     const { cpa, lawyer, won } = await setup();
     const res = await dealApi.PATCH(jsonReq(`/api/deals/${won}`, "PATCH", { referral_contact_id: lawyer }), params(won));
     expect(res.status).toBe(200);
-    const rows = referrals.referralSources();
+    const rows = referrals.referralSources(OWNER);
     expect(rows.find((r) => r.contact_id === cpa)).toMatchObject({ deals_sourced: 3, won: 0, won_fees: 0 });
     expect(rows.find((r) => r.contact_id === lawyer)).toMatchObject({ deals_sourced: 1, won: 1, won_fees: 650000 });
     const a = app.db.prepare("SELECT detail_json FROM audit_log WHERE action = 'deal.update' ORDER BY id DESC").get() as { detail_json: string };
@@ -160,7 +163,7 @@ describe("3.2 referral sources and credit", () => {
     expect((await dealApi.PATCH(jsonReq(`/api/deals/${won}`, "PATCH", { referral_contact_id: 99999 }), params(won))).status).toBe(400);
     expect((await dealApi.PATCH(jsonReq(`/api/deals/${won}`, "PATCH", { referral_contact_id: "abc" }), params(won))).status).toBe(400);
     expect((await dealApi.PATCH(jsonReq(`/api/deals/${won}`, "PATCH", { referral_contact_id: null }), params(won))).status).toBe(200);
-    expect(referrals.referralSources().find((r) => r.contact_id === lawyer)).toMatchObject({ deals_sourced: 0 });
+    expect(referrals.referralSources(OWNER).find((r) => r.contact_id === lawyer)).toMatchObject({ deals_sourced: 0 });
   });
 
   it("referral_kind is validated on the contact PATCH", async () => {
@@ -203,7 +206,7 @@ describe("3.3 global search", () => {
     app.company("Anything");
     app.contact();
     for (const q of ["", "   ", null]) {
-      const r = search.globalSearch(q);
+      const r = search.globalSearch(q, OWNER);
       expect([r.companies.length, r.contacts.length, r.deals.length]).toEqual([0, 0, 0]);
     }
     const body = await (await searchApi.GET(jsonReq("/api/search?q=%20", "GET"))).json();
@@ -215,9 +218,9 @@ describe("3.3 global search", () => {
     for (let i = 0; i < 12; i++) app.company(`Cedar ${i}`);
     app.company("100% Cedar Holdings");
     app.contact({ first_name: "Morgan", last_name: "Vale" });
-    expect(search.globalSearch("cedar").companies.length).toBe(8);
-    expect(search.globalSearch("100%").companies.map((c) => c.name)).toEqual(["100% Cedar Holdings"]);
-    expect(search.globalSearch("Morgan Vale").contacts.length).toBe(1);
+    expect(search.globalSearch("cedar", OWNER).companies.length).toBe(8);
+    expect(search.globalSearch("100%", OWNER).companies.map((c) => c.name)).toEqual(["100% Cedar Holdings"]);
+    expect(search.globalSearch("Morgan Vale", OWNER).contacts.length).toBe(1);
   });
 
   it("401 when signed out", async () => {

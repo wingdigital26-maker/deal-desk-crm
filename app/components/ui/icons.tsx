@@ -193,3 +193,13 @@ export function ActivityIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function MicIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25" />
+      <path d="M3.25 7.5a4.75 4.75 0 0 0 9.5 0" />
+      <path d="M8 12.25v2" />
+    </svg>
+  );
+}

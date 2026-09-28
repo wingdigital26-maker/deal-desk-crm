@@ -184,7 +184,7 @@ input[type="checkbox"] { accent-color: var(--navy); }
 /* Print: the seller report (and any page) prints without the app frame. */
 @media print {
   .app-shell { display: block !important; background: white !important; }
-  .app-shell > aside, .app-shell header, .app-shell nav, .no-print { display: none !important; }
+  .app-shell > aside, .app-shell > div > header, .app-shell > nav, .app-shell > aside nav, .no-print { display: none !important; }
   .app-shell main { max-width: none !important; padding: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid var(--rule-strong); }
   .print-break-avoid { break-inside: avoid; }

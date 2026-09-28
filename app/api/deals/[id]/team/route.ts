@@ -4,6 +4,7 @@ import { db, audit } from "../../../../lib/db";
 import { requireUser } from "../../../../lib/session";
 import * as v from "../../../../lib/validate";
 import { TEAM_ROLES } from "../../../../lib/dealTeam";
+import { assertDeal } from "../../../../lib/dealAccess";
 
 // Deal team: many users per deal, each with a role. One route file:
 // GET lists, POST adds, PATCH changes a role, DELETE ?user_id= removes.
@@ -36,6 +37,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   return Response.json({ items: list(id) });
 }
 
@@ -44,6 +47,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   if (!db().prepare("SELECT id FROM deals WHERE id = ?").get(id)) return Response.json({ error: "Not found" }, { status: 404 });
   const body = await readBody(req);
   if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -73,6 +78,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   const body = await readBody(req);
   if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   let userId: number, role: string;
@@ -104,6 +111,8 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (user instanceof Response) return user;
   const id = dealId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
   const userId = Number(new URL(req.url).searchParams.get("user_id"));
   if (!Number.isInteger(userId) || userId <= 0) return Response.json({ error: "user_id is required" }, { status: 400 });
   const res = db().prepare("DELETE FROM deal_team WHERE deal_id = ? AND user_id = ?").run(id, userId);

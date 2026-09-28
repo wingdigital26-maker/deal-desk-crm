@@ -2,6 +2,7 @@
 // LIKE queries with the wildcard characters escaped, a fixed cap per kind, and
 // an empty or blank query returns nothing (never the whole database).
 import { db } from "./db";
+import { visibleDealIds, type AccessUser } from "./dealAccess";
 
 export type SearchCompany = { id: number; name: string; domain: string | null; city: string | null; state: string | null };
 export type SearchContact = {
@@ -13,7 +14,7 @@ export type SearchContact = {
   company_id: number | null;
   company_name: string | null;
 };
-export type SearchDeal = { id: number; title: string; stage: string; company_id: number; company_name: string };
+export type SearchDeal = { id: number; title: string; stage: string; company_id: number; company_name: string; code_name: string | null };
 export type SearchResults = { q: string; companies: SearchCompany[]; contacts: SearchContact[]; deals: SearchDeal[] };
 
 export const SEARCH_LIMIT = 8;
@@ -24,7 +25,8 @@ export function likePattern(term: string): string {
   return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
-export function globalSearch(raw: string | null | undefined, limit = SEARCH_LIMIT): SearchResults {
+// Deals are limited to the ones this user can see (MNPI walls) and match on the code name too.
+export function globalSearch(raw: string | null | undefined, user: AccessUser, limit = SEARCH_LIMIT): SearchResults {
   const q = (raw ?? "").trim().slice(0, MAX_QUERY);
   if (!q) return { q, companies: [], contacts: [], deals: [] };
   const n = Math.max(1, Math.min(50, Math.floor(limit) || SEARCH_LIMIT));
@@ -49,14 +51,15 @@ export function globalSearch(raw: string | null | undefined, limit = SEARCH_LIMI
     )
     .all(p, p, p, p, p, n) as SearchContact[];
 
+  const w = visibleDealIds(user, "d.id");
   const deals = db()
     .prepare(
-      `SELECT d.id, d.title, d.stage, d.company_id, co.name AS company_name
+      `SELECT d.id, d.title, d.stage, d.company_id, co.name AS company_name, d.code_name
        FROM deals d JOIN companies co ON co.id = d.company_id
-       WHERE d.title LIKE ? ESCAPE '\\' OR co.name LIKE ? ESCAPE '\\'
+       WHERE (d.title LIKE ? ESCAPE '\\' OR co.name LIKE ? ESCAPE '\\' OR d.code_name LIKE ? ESCAPE '\\') AND ${w.sql}
        ORDER BY d.updated_at DESC, d.id DESC LIMIT ?`
     )
-    .all(p, p, n) as SearchDeal[];
+    .all(p, p, p, ...w.params, n) as SearchDeal[];
 
   return { q, companies, contacts, deals };
 }

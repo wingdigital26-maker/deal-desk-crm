@@ -4,6 +4,8 @@ import { currentUser } from "../lib/session";
 import { countCompaniesBySource, countCompaniesWithSignals } from "../lib/signals/queries";
 import { firm } from "../../firm.config";
 import PageHeader from "../components/crm/PageHeader";
+import SourcingRunPanel from "../components/sourcing/SourcingRunPanel";
+import { GOOD_FIT, lastSourcingRun, sourcingTotals } from "../lib/sourcing-runs";
 
 export const metadata = { title: `Sourcing | ${firm.productName}` };
 
@@ -17,6 +19,8 @@ export default async function SourcingHub() {
   // companies.source missed every registry company it found signals for.
   const signalCount = countCompaniesWithSignals();
   const totalCompanies = Object.values(bySource).reduce((a, b) => a + b, 0);
+  const lastRun = lastSourcingRun();
+  const totals = sourcingTotals();
 
   return (
     <div>
@@ -24,6 +28,8 @@ export default async function SourcingHub() {
         title="Sourcing"
         subtitle="Two ways new companies enter the desk: a live search, or a free automatic collector."
       />
+
+      <SourcingRunPanel run={lastRun} totals={totals} goodFit={GOOD_FIT} />
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Link
@@ -48,7 +54,7 @@ export default async function SourcingHub() {
           <div className="mb-2 text-[12px] font-semibold text-[var(--ink-soft)]">Free, automatic</div>
           <h2 className="display mb-2 text-lg text-[var(--ink)]">Signals</h2>
           <p className="mb-4 text-sm text-[var(--ink-soft)]">
-            Companies showing signs of change: hiring, news, filings, government contracts.
+            Companies showing signs of change: hiring, news, officer changes and owner news.
             Collected from public sources at no cost.
           </p>
           <div className="text-sm text-[var(--ink)]">

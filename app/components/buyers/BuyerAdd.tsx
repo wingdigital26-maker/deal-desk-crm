@@ -12,7 +12,7 @@ import { BUYER_TYPE_LABELS, type BuyerType } from "../../lib/buyerStages";
 type Candidate = { id: number; name: string; domain: string | null; buyer_type: string | null; times_shown: number };
 type Resolved = { input: { name: string; domain: string }; match: { id: number; name: string; domain: string | null } | null; ambiguous: boolean };
 
-export default function BuyerAdd({ dealId, onAdded }: { dealId: number; onAdded: (message: string) => void }) {
+export default function BuyerAdd({ dealId, onAdded }: { dealId: number; onAdded: (message: string, warnings?: string[]) => void }) {
   const [tab, setTab] = useState<"pick" | "csv">("pick");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Candidate[] | null>(null);
@@ -53,7 +53,10 @@ export default function BuyerAdd({ dealId, onAdded }: { dealId: number; onAdded:
         return;
       }
       const added = d.created.length + d.restored.length;
-      onAdded(`Added ${added} ${added === 1 ? "buyer" : "buyers"}${d.skipped.length ? `, skipped ${d.skipped.length} already on the log` : ""}.`);
+      onAdded(
+        `Added ${added} ${added === 1 ? "buyer" : "buyers"}${d.skipped.length ? `, skipped ${d.skipped.length} already on the log` : ""}.`,
+        Array.isArray(d.warnings) ? d.warnings.map((w: { message: string }) => w.message) : []
+      );
       setPicked(new Map());
       setResolved(null);
       setCsv("");

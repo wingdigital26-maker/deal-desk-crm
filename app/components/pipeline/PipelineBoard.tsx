@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import PageHeader from "../crm/PageHeader";
 import EmptyState from "../crm/EmptyState";
 import { Button } from "../ui/Button";
@@ -10,6 +10,7 @@ import PipelineForecast from "./PipelineForecast";
 import PipelineList from "./PipelineList";
 import { type StageDefaults } from "../../lib/dealMath";
 import type { Deal } from "./types";
+import { codeNamePrefSnapshot, maskDeal, subscribeCodeNamePref, writeCodeNamePref } from "../../lib/codeNames";
 
 type ViewMode = "board" | "list";
 
@@ -26,6 +27,11 @@ export default function PipelineBoard({ stages, cfg }: { stages: readonly string
   const [deleteTarget, setDeleteTarget] = useState<Deal | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // "Show code names": hides real company names (and the people and places that
+  // identify them) on code-named deals so the screen can be shared. Saved per browser.
+  // The server render always shows real names; the saved choice applies on the client.
+  const showCodes = useSyncExternalStore(subscribeCodeNamePref, codeNamePrefSnapshot, () => false);
+  const toggleCodes = (on: boolean) => writeCodeNamePref(on);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,15 +65,18 @@ export default function PipelineBoard({ stages, cfg }: { stages: readonly string
     };
   }, [deals, stages]);
 
+  const shown = useMemo(() => (deals && showCodes ? deals.map(maskDeal) : deals), [deals, showCodes]);
+  const uncoded = (deals ?? []).filter((d) => !d.code_name?.trim()).length;
+
   const byStage = useMemo(() => {
     const map = new Map<string, Deal[]>();
     for (const s of stages) map.set(s, []);
-    for (const d of deals ?? []) {
+    for (const d of shown ?? []) {
       if (!map.has(d.stage)) map.set(d.stage, []);
       map.get(d.stage)!.push(d);
     }
     return map;
-  }, [deals, stages]);
+  }, [shown, stages]);
 
   async function moveDeal(dealId: number, stage: string) {
     if (!deals) return;
@@ -127,14 +136,20 @@ export default function PipelineBoard({ stages, cfg }: { stages: readonly string
       title="Pipeline"
       subtitle={`${stages.length} stages, from sourcing through close.`}
       actions={
-        <Button
-          onClick={() => {
-            setCreatingGlobal((v) => !v);
-            setCreatingInStage(null);
-          }}
-        >
-          New deal
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
+            <input type="checkbox" checked={showCodes} onChange={(e) => toggleCodes(e.target.checked)} className="h-4 w-4" />
+            Show code names
+          </label>
+          <Button
+            onClick={() => {
+              setCreatingGlobal((v) => !v);
+              setCreatingInStage(null);
+            }}
+          >
+            New deal
+          </Button>
+        </div>
       }
     />
   );
@@ -190,6 +205,13 @@ export default function PipelineBoard({ stages, cfg }: { stages: readonly string
             onCancel={() => setCreatingGlobal(false)}
           />
         </div>
+      )}
+
+      {showCodes && (
+        <p className="mb-3 text-sm text-[var(--ink-soft)]">
+          Code names on: company names, people, places and notes are hidden on code-named deals.
+          {uncoded > 0 && ` ${uncoded} ${uncoded === 1 ? "deal has" : "deals have"} no code name yet and still ${uncoded === 1 ? "shows its" : "show their"} company.`}
+        </p>
       )}
 
       <PipelineForecast deals={deals} cfg={cfg} />
@@ -290,7 +312,7 @@ export default function PipelineBoard({ stages, cfg }: { stages: readonly string
         </>
       ) : (
         <PipelineList
-          deals={deals}
+          deals={shown ?? deals}
           stages={stages}
           closedStages={cfg.closedStages}
           onMove={moveDeal}

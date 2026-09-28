@@ -1,6 +1,7 @@
 <#
 Registers two Windows Scheduled Tasks for banker-harness:
-  HarnessSignalsWeekly  - Mondays 06:00 - runs the Python signal scraper
+  HarnessSignalsWeekly  - Mondays 06:00 - runs the Python signal scraper, then the
+                          sourcing pipeline (website, fit, owners, signals) for 500 companies
   HarnessBackupNightly  - daily 02:30    - runs the database backup script
 
 Both launch hidden via a .vbs -> .bat chain (scripts/run-*.vbs / .bat) to work
@@ -12,6 +13,10 @@ actual multi-argument command.
 
 Idempotent: re-running this replaces any existing task of the same name
 instead of duplicating it (Register-ScheduledTask -Force).
+
+Run it from the checkout whose data\harness.db is the live database (the
+tasks point at the scripts next to this file), or set HARNESS_DB_PATH for the
+user the task runs as. Nothing is scheduled until someone runs this script.
 
 Usage:
   powershell -File scripts/install-tasks.ps1            # register/update both tasks
@@ -32,7 +37,7 @@ $Tasks = @(
         Name    = "HarnessSignalsWeekly"
         Vbs     = Join-Path $ScriptsDir "run-signals-weekly.vbs"
         Trigger = { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 6:00am }
-        Summary = "Mondays 06:00 -> scrapers/harness_signals.py run --db data/harness.db"
+        Summary = "Mondays 06:00 -> harness_signals.py run, then scrapers/pipeline.py run --limit 500 (log: scrapers/.tmp/weekly.log)"
     },
     @{
         Name    = "HarnessBackupNightly"

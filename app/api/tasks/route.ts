@@ -3,20 +3,24 @@ export const runtime = "nodejs";
 import { db, audit } from "../../lib/db";
 import { requireUser } from "../../lib/session";
 import * as v from "../../lib/validate";
+import { canSeeDeal, visibleDealIds } from "../../lib/dealAccess";
 
 export async function GET() {
   const user = await requireUser();
   if (user instanceof Response) return user;
 
+  // Tasks on a deal behind the wall are left out; tasks with no deal show for everyone.
+  const w = visibleDealIds(user, "t.deal_id", { nullable: true });
   const rows = db()
     .prepare(
       `SELECT t.*, d.title AS deal_title, c.first_name AS contact_first_name, c.last_name AS contact_last_name
        FROM tasks t
        LEFT JOIN deals d ON d.id = t.deal_id
        LEFT JOIN contacts c ON c.id = t.contact_id
+       WHERE ${w.sql}
        ORDER BY (t.due IS NULL), t.due ASC, t.created_at ASC`
     )
-    .all();
+    .all(...w.params);
 
   return Response.json({ items: rows });
 }
@@ -50,10 +54,8 @@ export async function POST(req: Request) {
     throw err;
   }
 
-  if (dealId) {
-    const deal = db().prepare("SELECT id FROM deals WHERE id = ?").get(dealId);
-    if (!deal) return Response.json({ error: "Unknown deal_id" }, { status: 400 });
-  }
+  // A deal behind the wall answers exactly like one that does not exist.
+  if (dealId && !canSeeDeal(user, dealId)) return Response.json({ error: "Unknown deal_id" }, { status: 400 });
   if (contactId) {
     const contact = db().prepare("SELECT id FROM contacts WHERE id = ?").get(contactId);
     if (!contact) return Response.json({ error: "Unknown contact_id" }, { status: 400 });

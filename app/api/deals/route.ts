@@ -4,6 +4,7 @@ import { db, audit } from "../../lib/db";
 import { requireUser } from "../../lib/session";
 import { firm } from "../../../firm.config";
 import * as v from "../../lib/validate";
+import { addCreatorToTeam, visibleDealIds } from "../../lib/dealAccess";
 
 const VALID_SITUATIONS = new Set(["growth-partner", "succession", "strategic-transition", "other"]);
 
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
   if (user instanceof Response) return user;
 
   const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";
+  // Only deals this user may see (MNPI walls).
+  const w = visibleDealIds(user);
 
   const rows = q
     ? (db()
@@ -47,11 +50,11 @@ export async function GET(req: Request) {
            FROM deals d
            JOIN companies c ON c.id = d.company_id
            LEFT JOIN contacts pc ON pc.id = d.primary_contact_id
-           WHERE d.title LIKE ? OR c.name LIKE ?
+           WHERE (d.title LIKE ? OR c.name LIKE ? OR d.code_name LIKE ?) AND ${w.sql}
            ORDER BY d.updated_at DESC
            LIMIT 8`
         )
-        .all(`%${q}%`, `%${q}%`) as DealRow[])
+        .all(`%${q}%`, `%${q}%`, `%${q}%`, ...w.params) as DealRow[])
     : (db()
         .prepare(
           `SELECT d.*, c.name AS company_name, c.domain AS company_domain, c.city AS company_city, c.state AS company_state,
@@ -68,9 +71,10 @@ export async function GET(req: Request) {
            FROM deals d
            JOIN companies c ON c.id = d.company_id
            LEFT JOIN contacts pc ON pc.id = d.primary_contact_id
+           WHERE ${w.sql}
            ORDER BY d.updated_at DESC`
         )
-        .all() as DealRow[]);
+        .all(...w.params) as DealRow[]);
 
   return Response.json({ items: rows });
 }
@@ -113,6 +117,8 @@ export async function POST(req: Request) {
     .run(companyId, title, stage, situation, nextStep, nextStepDue, user.id);
 
   const dealId = Number(result.lastInsertRowid);
+  // The creator leads the deal team, so the wall never locks them out of their own mandate.
+  addCreatorToTeam(dealId, user.id);
 
   audit({
     actorUserId: user.id,

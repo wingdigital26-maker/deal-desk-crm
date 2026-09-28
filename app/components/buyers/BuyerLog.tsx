@@ -11,6 +11,9 @@ import EmptyState from "../crm/EmptyState";
 import { inputClass } from "../crm/Field";
 import BuyerAdd from "./BuyerAdd";
 import TermsGrid from "./TermsGrid";
+import NextStepEditor from "./NextStepEditor";
+import { todayISO } from "../pipeline/dateUtils";
+import { isFollowUpDue } from "../../lib/followups";
 import { ioiText, stageText } from "./format";
 import {
   BUYER_STAGES,
@@ -61,9 +64,12 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [stageFilter, setStageFilter] = useState<string>("");
+  const [followOnly, setFollowOnly] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Conflict warnings from the last add (app/lib/conflicts.ts). Plain text; they never block.
+  const [conflicts, setConflicts] = useState<string[]>([]);
   const [decline, setDecline] = useState<{ ids: number[] } | null>(null);
   const [bulkStage, setBulkStage] = useState<string>("");
 
@@ -97,10 +103,15 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
     return send("/api/deal-buyers/bulk-stage", "POST", { ids, stage }).then((ok) => ok && setSelected(new Set()));
   }
 
+  const today = todayISO();
+  const followUpsDue = data.items.filter((b) => isFollowUpDue(b, today)).length;
   const rows = useMemo(() => {
     const q = text.trim().toLowerCase();
-    return data.items.filter((b) => (!stageFilter || b.stage === stageFilter) && (!q || b.buyer_name.toLowerCase().includes(q)));
-  }, [data.items, stageFilter, text]);
+    return data.items.filter(
+      (b) => (!stageFilter || b.stage === stageFilter) && (!q || b.buyer_name.toLowerCase().includes(q)) && (!followOnly || isFollowUpDue(b, today))
+    );
+  }, [data.items, stageFilter, text, followOnly, today]);
+  const saveNext = (id: number) => (patch: { next_step?: string | null; next_step_due?: string | null }) => send(`/api/deal-buyers/${id}`, "PATCH", patch);
 
   const allSelected = rows.length > 0 && rows.every((b) => selected.has(b.id));
   const toggle = (id: number) =>
@@ -126,6 +137,9 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
           <ButtonLink href={`/pipeline/${dealId}/report`} variant="secondary" size="sm">
             Seller report
           </ButtonLink>
+          <ButtonLink href={`/pipeline/${dealId}/import`} variant="secondary" size="sm">
+            Import from 4Degrees
+          </ButtonLink>
           <Button size="sm" onClick={() => setAdding((a) => !a)}>
             {adding ? "Close" : "Add buyers"}
           </Button>
@@ -138,8 +152,9 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
         <div className="mt-4">
           <BuyerAdd
             dealId={dealId}
-            onAdded={async (msg) => {
+            onAdded={async (msg, warnings) => {
               setNotice(msg);
+              setConflicts(warnings ?? []);
               await reload();
             }}
           />
@@ -147,6 +162,21 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
       )}
 
       {notice && <div className="mt-3 text-sm text-[var(--ink-soft)]">{notice}</div>}
+      {conflicts.length > 0 && (
+        <div className="mt-3 rounded-[12px] border border-[var(--rule-strong)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink)]" role="status">
+          <p className="font-semibold">
+            Possible {conflicts.length === 1 ? "conflict" : "conflicts"} to review. The {conflicts.length === 1 ? "buyer was" : "buyers were"} still added.
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {conflicts.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+          <button onClick={() => setConflicts([])} className="mt-1 min-h-[44px] text-[13px] text-[var(--ink-soft)] underline hover:text-[var(--ink)]">
+            Dismiss
+          </button>
+        </div>
+      )}
       {error && <div className="mt-3 text-sm text-[var(--bad)]">{error}</div>}
 
       {total === 0 ? (
@@ -189,6 +219,15 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
                     </option>
                   ))}
                 </select>
+                <button
+                  onClick={() => setFollowOnly((f) => !f)}
+                  aria-pressed={followOnly}
+                  className={`min-h-[44px] rounded-[var(--radius-sm)] border px-3 text-sm ${
+                    followOnly ? "border-[var(--navy)] bg-[var(--navy)] font-medium text-white" : "border-[var(--rule-strong)] bg-[var(--surface)] text-[var(--ink)]"
+                  }`}
+                >
+                  Follow-ups due ({followUpsDue})
+                </button>
               </>
             )}
           </div>
@@ -243,6 +282,7 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
                       <th className="py-2 pr-3">Lead contact</th>
                       <th className="py-2 pr-3">Stage</th>
                       <th className="py-2 pr-3">Last move</th>
+                      <th className="py-2 pr-3">Next</th>
                       <th className="py-2 pr-3">IOI</th>
                       <th className="py-2 pr-3">Note</th>
                       <th className="py-2" />
@@ -283,6 +323,9 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
                           </select>
                         </td>
                         <td className="numeric py-2 pr-3 text-[var(--ink-soft)]">{shortDate(lastMove(b))}</td>
+                        <td className="w-[200px] max-w-[260px] py-1 pr-3">
+                          <NextStepEditor key={`${b.id}-${b.next_step ?? ""}-${b.next_step_due ?? ""}`} b={b} onSave={saveNext(b.id)} />
+                        </td>
                         <td className="numeric py-2 pr-3 text-[var(--ink)]">{hasTerms(b) ? ioiText(b) || "-" : ""}</td>
                         <td className="max-w-[220px] py-2 pr-3 text-[12px] text-[var(--ink-soft)]">
                           {b.stage === "declined" ? (
@@ -329,6 +372,12 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
                         </div>
                         <input type="checkbox" aria-label={`Select ${b.buyer_name}`} checked={selected.has(b.id)} onChange={() => toggle(b.id)} className="mt-1 h-5 w-5" />
                       </div>
+                      <div className="mt-1 flex items-start gap-2 text-[12px]">
+                        <span className="min-h-[44px] pt-[14px] font-semibold text-[var(--ink-soft)]">Next</span>
+                        <div className="min-w-0 flex-1">
+                          <NextStepEditor key={`${b.id}-${b.next_step ?? ""}-${b.next_step_due ?? ""}`} b={b} onSave={saveNext(b.id)} />
+                        </div>
+                      </div>
                       <div className="mt-2 grid grid-cols-3 gap-2">
                         <Button size="sm" variant="secondary" disabled={!prev} onClick={() => prev && moveTo([b.id], prev)}>
                           Back
@@ -350,7 +399,11 @@ export default function BuyerLog({ dealId, initial, ndaDocs = {} }: { dealId: nu
                   );
                 })}
               </ul>
-              {rows.length === 0 && <p className="mt-3 text-sm text-[var(--ink-soft)]">No buyers match that filter.</p>}
+              {rows.length === 0 && (
+                <p className="mt-3 text-sm text-[var(--ink-soft)]">
+                  {followOnly && followUpsDue === 0 ? "No buyer follow-ups are due. Set a next step on a buyer and it shows here on its date." : "No buyers match that filter."}
+                </p>
+              )}
             </>
           )}
         </>

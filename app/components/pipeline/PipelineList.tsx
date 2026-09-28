@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { inputClass } from "../crm/Field";
 import ExportLinks from "../crm/ExportLinks";
+import VoiceNoteButton from "../crm/VoiceNoteButton";
 import { PeopleLine } from "./DealCard";
 import AttentionLabel from "./AttentionLabel";
 import { attention, attentionSummary, type Attention, type AttentionKind } from "../../lib/attention";
@@ -20,6 +21,12 @@ const selectClass =
 
 const shortDate = (s: string | null | undefined) =>
   s ? new Date(s.replace(" ", "T") + (s.length > 10 ? "Z" : "T00:00:00")).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
+
+// A code-named deal leads with "Project Juniper" and names the real company on
+// the line under it (everyone here can see the deal). With "Show code names" on,
+// company_name is already the code name and the real one is gone (maskDeal).
+const codeLabel = (d: Deal) => (d.code_name?.trim() ? d.code_name.trim() : d.company_name);
+const realCompany = (d: Deal) => (d.code_name?.trim() && !d.masked ? d.company_name : null);
 
 const location = (d: Deal) => [d.company_city, d.company_state].filter(Boolean).join(", ");
 
@@ -130,7 +137,7 @@ export default function PipelineList({
   }
 
   function inlineInput(d: Deal, label: string) {
-    return (
+    const box = (
       <input
         autoFocus
         aria-label={label}
@@ -144,6 +151,13 @@ export default function PipelineList({
         placeholder={label}
         className="h-11 w-full rounded-[8px] border border-[var(--rule-strong)] bg-[var(--surface)] px-2 text-sm md:h-9"
       />
+    );
+    if (editing?.field !== "note") return box;
+    return (
+      <div className="flex items-start gap-1.5">
+        <div className="min-w-0 flex-1">{box}</div>
+        <VoiceNoteButton value={draft} onChange={setDraft} />
+      </div>
     );
   }
 
@@ -297,18 +311,20 @@ export default function PipelineList({
                       <Link
                         href={`/pipeline/${d.id}`}
                         className={`min-w-0 truncate font-semibold hover:underline ${a?.closed ? "text-[var(--ink-soft)]" : "text-[var(--accent-deep)]"}`}
-                        title={d.company_name}
+                        title={realCompany(d) ? `${codeLabel(d)} (${realCompany(d)})` : codeLabel(d)}
                       >
-                        {d.company_name}
+                        {codeLabel(d)}
                       </Link>
                       <AttentionLabel a={a} />
                     </div>
-                    <PeopleLine deal={d} oneLine />
+                    <PeopleLine deal={d} oneLine prefix={realCompany(d)} />
                   </td>
                   <td className="py-1.5 pr-3">{contactLine(d)}</td>
                   <td className="py-1.5 pr-3">{stageSelect(d, a, "h-9 w-full")}</td>
                   <td className="py-1.5 pr-3">
-                    {editing?.id === d.id && editing.field === "outcome" ? (
+                    {d.masked ? (
+                      <span className="text-[var(--ink-faint)]">-</span>
+                    ) : editing?.id === d.id && editing.field === "outcome" ? (
                       inlineInput(d, "Outcome, e.g. Pass - too concentrated")
                     ) : (
                       <button
@@ -366,11 +382,11 @@ export default function PipelineList({
                   href={`/pipeline/${d.id}`}
                   className={`flex min-h-[44px] min-w-0 items-center font-semibold hover:underline ${a?.closed ? "text-[var(--ink-soft)]" : "text-[var(--accent-deep)]"}`}
                 >
-                  <span className="truncate">{d.company_name}</span>
+                  <span className="truncate">{codeLabel(d)}</span>
                 </Link>
                 <AttentionLabel a={a} />
               </div>
-              <PeopleLine deal={d} oneLine />
+              <PeopleLine deal={d} oneLine prefix={realCompany(d)} />
               <div className="mt-1 flex items-center justify-between gap-2">
                 {stageSelect(d, a, "h-11 min-w-0 max-w-[55%]")}
                 <div className="flex items-center gap-2 text-sm">

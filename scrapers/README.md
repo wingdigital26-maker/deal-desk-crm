@@ -85,3 +85,36 @@ python scrapers/harness_signals.py score --db data/harness.db
 - Testing against a scratch copy: point `--db` at a throwaway path (e.g.
   `scrapers/.tmp/scratch.db`), never `data/harness.db`. Delete the scratch
   file when done.
+
+# Sourcing pipeline (v2): website, fit, owners, signals
+
+One command does all four steps for up to N companies not checked in the last
+30 days (registry companies never checked go first):
+
+```
+python scrapers/pipeline.py run --db data/harness.db --limit 200 [--sample-ids ids.txt] [--log run.jsonl]
+python -m unittest discover -s scrapers/tests        # offline tests, fixture HTML only
+```
+
+| Step | Script | What it writes |
+| --- | --- | --- |
+| Website | `find_websites.py` | Candidate domains from the legal name, DNS check, homepage identity proof (name AND Texas city / street / ZIP / area code). Confirmed -> `companies.domain`; unconfirmed -> `profile_facts` website row labelled unconfirmed, with the evidence. Parked, for-sale, placeholder and big-brand redirects are rejected. |
+| Fit | `fit_score.py` | `companies.fit_score` 0-100 and one `profile_facts` row per reason (`fit_reasons`), each with its source URL. Industry taxonomy, exclusions (holding / property / church / HOA / trust / GP / practice / restaurant), size clues, family or founder ownership, PE or parent ownership. No confirmed site caps the score at 30. `signal_score` is never touched here. |
+| Owners | `tx_officers.py` | Owner-level people from the company's own confirmed site (About / Team / Leadership), stored as contacts with no email, `source = 'company-website'`. The Comptroller's officer list is used only through its official Public Data API and only when `TX_COMPTROLLER_API_KEY` is set (free key, registration required); its public search endpoint is robots-disallowed and is never scraped. Then a DNS-only MX check. |
+| Signals | `sourcing_signals.py` | `officer-change` (snapshots differ between runs, weight 5), `owner-news`, `business-journal` / `news`, via the GDELT DOC API. Google News RSS is robots-disallowed and is not used by this pipeline. |
+
+Each company is one transaction, so a stopped run loses at most the company in
+flight and the next run resumes. Every run writes a `sourcing_runs` row (shown
+at the top of the Sourcing page) and an `audit_log` row (`sourcing.run`).
+
+On networks that block DNS-over-HTTPS the website finder falls back to the
+operating system resolver, and the MX check falls back to `nslookup -type=mx`.
+
+The weekly task (`scripts/run-signals-weekly.bat`, registered by
+`scripts/install-tasks.ps1`) runs the signal engine and then this pipeline with
+`--limit 500`, logging to `scrapers/.tmp/weekly.log`. Installing the task is a
+separate, deliberate step:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts/install-tasks.ps1
+```

@@ -4,6 +4,7 @@ import { db, audit } from "../../../lib/db";
 import { requireUser } from "../../../lib/session";
 import { firm } from "../../../../firm.config";
 import * as v from "../../../lib/validate";
+import { assertDeal } from "../../../lib/dealAccess";
 
 const VALID_STAGES = new Set<string>(firm.dealStages);
 const VALID_SITUATIONS = new Set(["growth-partner", "succession", "strategic-transition", "other"]);
@@ -19,6 +20,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
 
   const deal = db()
     .prepare(
@@ -42,6 +45,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
 
   const existing = db().prepare("SELECT * FROM deals WHERE id = ?").get(id) as
     | { id: number; stage: string; company_id: number }
@@ -113,6 +118,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       fields.push("fee_terms = ?");
       values.push(v.boundedString("fee_terms", body.fee_terms, 1000));
       detail.fee_terms_changed = true;
+    }
+    // WALLS: the project code name that stands in for the company on reports and shared screens.
+    if ("code_name" in body) {
+      const val = v.boundedString("code_name", body.code_name, 80);
+      fields.push("code_name = ?");
+      values.push(val);
+      detail.code_name = val;
+      detail.from_code_name = (existing as { code_name?: string | null }).code_name ?? null;
     }
     if ("outcome" in body) {
       const val = v.boundedString("outcome", body.outcome, 500);
@@ -200,6 +213,8 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
 
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = assertDeal(user, id);
+  if (hidden) return hidden;
 
   const existing = db().prepare("SELECT id FROM deals WHERE id = ?").get(id);
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });

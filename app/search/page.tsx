@@ -1,6 +1,8 @@
 // Global search results: companies, people and deals for one query, grouped by
 // kind. A blank query shows a prompt, never the whole database.
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { currentUser } from "../lib/session";
 import { firm } from "../../firm.config";
 import PageHeader from "../components/crm/PageHeader";
 import EmptyState from "../components/crm/EmptyState";
@@ -16,9 +18,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: `Search | ${firm.productName}` };
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
+  const user = await currentUser();
+  if (!user) redirect("/login");
   const sp = await searchParams;
   const raw = Array.isArray(sp.q) ? sp.q[0] : sp.q;
-  const results = globalSearch(raw);
+  // Deals are limited to the ones this user can see (MNPI walls).
+  const results = globalSearch(raw, user);
   const q = results.q;
   const total = results.companies.length + results.contacts.length + results.deals.length;
   const enc = encodeURIComponent(q);
@@ -105,7 +110,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 {results.deals.map((d) => (
                   <li key={d.id}>
                     <Link href={`/pipeline/${d.id}`} className="flex min-h-[44px] flex-wrap items-center justify-between gap-x-3 py-2">
-                      <span className="font-medium text-[var(--ink)]">{d.title}</span>
+                      <span className="font-medium text-[var(--ink)]">
+                        {d.code_name ? `${d.code_name} · ` : ""}
+                        {d.title}
+                      </span>
                       <span className="text-sm text-[var(--ink-soft)]">
                         {coName(d.company_name)} · {d.stage}
                       </span>

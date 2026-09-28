@@ -4,37 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseCsvWithHeader } from "../../lib/csv";
 import { Button } from "../ui/Button";
-
-const TARGET_FIELDS: { key: string; label: string; required?: boolean }[] = [
-  { key: "first_name", label: "First name" },
-  { key: "last_name", label: "Last name" },
-  { key: "title", label: "Title" },
-  { key: "email", label: "Email" },
-  { key: "phone", label: "Phone" },
-  { key: "linkedin_url", label: "LinkedIn URL" },
-  { key: "company_name", label: "Company name" },
-  { key: "company_domain", label: "Company domain" },
-];
-
-function guessMapping(headers: string[]): Record<string, string> {
-  const mapping: Record<string, string> = {};
-  const lower = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
-  const table: Record<string, string[]> = {
-    first_name: ["firstname", "first"],
-    last_name: ["lastname", "last"],
-    title: ["title", "jobtitle", "position"],
-    email: ["email", "emailaddress", "workemail"],
-    phone: ["phone", "phonenumber", "mobile", "workphone"],
-    linkedin_url: ["linkedin", "linkedinurl", "linkedinprofile"],
-    company_name: ["company", "companyname", "organization", "org"],
-    company_domain: ["domain", "companydomain", "website"],
-  };
-  for (const [field, aliases] of Object.entries(table)) {
-    const match = headers.find((h) => aliases.includes(lower(h)));
-    if (match) mapping[field] = match;
-  }
-  return mapping;
-}
+import {
+  CONTACT_SOURCE_LABELS,
+  CONTACT_TARGET_FIELDS as TARGET_FIELDS,
+  detectContactSource,
+  guessContactMapping,
+  type ContactSource,
+} from "../../lib/contactImportMap";
 
 export default function CsvImport({ onDone, trigger = "Import CSV" }: { onDone?: () => void; trigger?: string }) {
   const router = useRouter();
@@ -43,6 +19,7 @@ export default function CsvImport({ onDone, trigger = "Import CSV" }: { onDone?:
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [source, setSource] = useState<ContactSource>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ created: number; updated: number; skipped_duplicate: number; skipped_invalid: number } | null>(null);
@@ -58,7 +35,8 @@ export default function CsvImport({ onDone, trigger = "Import CSV" }: { onDone?:
     }
     setHeaders(headers);
     setRows(rows);
-    setMapping(guessMapping(headers));
+    setMapping(guessContactMapping(headers) as Record<string, string>);
+    setSource(detectContactSource(headers));
     setResult(null);
     setError(null);
   }
@@ -92,6 +70,7 @@ export default function CsvImport({ onDone, trigger = "Import CSV" }: { onDone?:
     setHeaders([]);
     setRows([]);
     setMapping({});
+    setSource(null);
     setResult(null);
     setError(null);
     if (fileRef.current) fileRef.current.value = "";
@@ -163,11 +142,21 @@ export default function CsvImport({ onDone, trigger = "Import CSV" }: { onDone?:
           </Button>
         </div>
       ) : headers.length === 0 ? (
-        <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} className="text-sm" />
+        <div className="space-y-3">
+          <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} className="min-h-[44px] text-sm" />
+          <p className="text-[13px] text-[var(--ink-soft)]">
+            Any CSV works. Outlook and Google Contacts exports are recognised and mapped for you.
+          </p>
+          <ul className="space-y-1 text-[12px] text-[var(--ink-faint)]">
+            <li>Outlook: File &gt; Open &amp; Export &gt; Import/Export &gt; Export to a file &gt; CSV</li>
+            <li>Google Contacts: Export &gt; Google CSV</li>
+          </ul>
+        </div>
       ) : (
         <div className="space-y-4">
           <div>
             <p className="mb-2 text-xs text-[var(--ink-faint)]">
+              {source ? `${CONTACT_SOURCE_LABELS[source]} recognised, columns mapped for you. ` : ""}
               {rows.length} rows found. Map each CRM field to a column from your file (leave unmapped fields blank).
             </p>
             <div className="grid gap-2 sm:grid-cols-2">

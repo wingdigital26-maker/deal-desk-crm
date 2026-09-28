@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "../../lib/db";
 import { currentUser } from "../../lib/session";
@@ -15,6 +15,7 @@ import { isDemo } from "../../lib/demo-policy";
 import ContactCompanies from "../../components/crm/ContactCompanies";
 import ReferralKindSelect from "../../components/crm/ReferralKindSelect";
 import { linksForContact } from "../../lib/contactCompanies";
+import { visibleDealIds } from "../../lib/dealAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ type ContactRow = {
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
+  if (!user) redirect("/login");
   const { id } = await params;
   const contactId = Number(id);
   const contact = db().prepare("SELECT * FROM contacts WHERE id = ?").get(contactId) as ContactRow | undefined;
@@ -47,18 +49,21 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         | undefined)
     : undefined;
   const companies = company ? [{ id: company.id, name: company.name }] : [];
+  // MNPI walls: timeline notes and sourced deals only from deals this user can see.
+  const wa = visibleDealIds(user, "activities.deal_id", { nullable: true });
   const activities = db()
     .prepare(
       `SELECT activities.*, users.name AS user_name FROM activities
        LEFT JOIN users ON users.id = activities.user_id
-       WHERE activities.contact_id = ? ORDER BY activities.created_at DESC, activities.id DESC`
+       WHERE activities.contact_id = ? AND ${wa.sql} ORDER BY activities.created_at DESC, activities.id DESC`
     )
-    .all(contactId) as Activity[];
+    .all(contactId, ...wa.params) as Activity[];
 
   const links = linksForContact(contactId);
+  const wd = visibleDealIds(user, "id");
   const sourced = db()
-    .prepare("SELECT id, title, stage FROM deals WHERE referral_contact_id = ? ORDER BY updated_at DESC, id DESC")
-    .all(contactId) as { id: number; title: string; stage: string }[];
+    .prepare(`SELECT id, title, stage FROM deals WHERE referral_contact_id = ? AND ${wd.sql} ORDER BY updated_at DESC, id DESC`)
+    .all(contactId, ...wd.params) as { id: number; title: string; stage: string }[];
 
   const displayName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email || "Contact";
   const profile = company ? getCompanyProfile(company.id) : null;

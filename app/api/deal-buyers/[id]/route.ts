@@ -2,7 +2,14 @@ export const runtime = "nodejs";
 
 import { requireUser } from "../../../lib/session";
 import { isBuyerStage } from "../../../lib/buyerStages";
+import { canSeeDeal, dealIdForBuyer } from "../../../lib/dealAccess";
 import { buyerErrorResponse, changeStage, getBuyer, parseTermPatch, removeBuyer, updateTerms } from "../../../lib/buyers";
+
+// A buyer row on a deal this user cannot see answers exactly like a missing one.
+function hiddenBuyer(user: { id: number; role: string }, id: number): Response | null {
+  const dealId = dealIdForBuyer(id);
+  return dealId != null && canSeeDeal(user, dealId) ? null : Response.json({ error: "Buyer not found" }, { status: 404 });
+}
 
 function parseId(raw: string) {
   const id = Number(raw);
@@ -16,6 +23,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (user instanceof Response) return user;
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = hiddenBuyer(user, id);
+  if (hidden) return hidden;
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   try {
@@ -42,6 +51,8 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (user instanceof Response) return user;
   const id = parseId((await ctx.params).id);
   if (!id) return Response.json({ error: "Invalid id" }, { status: 400 });
+  const hidden = hiddenBuyer(user, id);
+  if (hidden) return hidden;
   try {
     removeBuyer(id, user.id);
     return Response.json({ ok: true });
